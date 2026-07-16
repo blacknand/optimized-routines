@@ -179,6 +179,7 @@ double modf_frac(double x) { double i; return modf(x, &i); }
 double modf_int(double x) { double i; modf(x, &i); return i; }
 long double modfl_frac(long double x) { long double i; return modfl(x, &i); }
 long double modfl_int(long double x) { long double i; modfl(x, &i); return i; }
+long double lgammal_wrap(long double x) { return lgammal(x); }
 double lgammaf_wrap(double x) { return lgammaf((float) x); }
 
 static double
@@ -192,6 +193,7 @@ cr_exp (double x)
 static float Z_expf_1u(float x) { return _ZGVnN4v_expf_1u(argf(x))[0]; }
 static float Z_exp2f_1u(float x) { return _ZGVnN4v_exp2f_1u(argf(x))[0]; }
 static float Z_lgammaf(float x) { return _ZGVnN4v_lgammaf(argf(x))[0]; }
+static double Z_lgamma(double x) { return _ZGVnN2v_lgamma(argd(x))[0]; }
 # if WANT_EXPERIMENTAL_MATH
 static float Z_fast_cosf(float x) { return arm_math_advsimd_fast_cosf(argf(x))[0]; }
 static float Z_fast_sinf(float x) { return arm_math_advsimd_fast_sinf(argf(x))[0]; }

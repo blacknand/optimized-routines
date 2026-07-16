@@ -8,6 +8,11 @@
 {"pow", 'd', 0, 0.01, 11.1, {.d = xypow}},
 D (xpow, 0.01, 11.1)
 D (ypow, -9.9, 9.9)
+#if defined (__APPLE__) || defined (_WIN32)
+{"lgamma", 'd', 0, -10.0, 10.0, {.d = lgamma_r_wrap}},
+#else
+{"lgamma_r", 'd', 0, -10.0, 10.0, {.d = lgamma_r_wrap}},
+#endif
 {"powf", 'f', 0, 0.01, 11.1, {.f = xypowf}},
 F (xpowf, 0.01, 11.1)
 F (ypowf, -9.9, 9.9)
@@ -69,6 +74,7 @@ F (arm_math_erff, -4.0, 4.0)
 {"_ZGVnN4v_cexpif", 'f', 'n', -3.1, 3.1, {.vnf = _Z_cexpif_wrap}},
 {"_ZGVnN2v_cexpi", 'd', 'n', -3.1, 3.1, {.vnd = _Z_cexpi_wrap}},
 VNF (_ZGVnN4v_lgammaf, -10.0, 10.0)
+VND (_ZGVnN2v_lgamma, -10.0, 10.0)
 VNF (_ZGVnN4v_expf_1u, -9.9, 9.9)
 VNF (_ZGVnN4v_exp2f_1u, -9.9, 9.9)
 # if WANT_EXPERIMENTAL_MATH

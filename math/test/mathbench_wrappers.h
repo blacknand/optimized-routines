@@ -41,6 +41,17 @@ powi_wrap (double x)
 }
 #endif /* WANT_EXPERIMENTAL_MATH.  */
 
+static double
+lgamma_r_wrap (double x)
+{
+#if defined(__APPLE__) || defined(_WIN32)
+  return lgamma (x);
+#else
+  int sign;
+  return lgamma_r (x, &sign);
+#endif
+}
+
 static float
 lgammaf_r_wrap (float x)
 {

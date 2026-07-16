@@ -13,6 +13,7 @@
  F (_ZGVnN4v_expf_1u, Z_expf_1u, exp, mpfr_exp, 1, 1, f1, 1)
  F (_ZGVnN4v_exp2f_1u, Z_exp2f_1u, exp2, mpfr_exp2, 1, 1, f1, 1)
  F (_ZGVnN4v_lgammaf, Z_lgammaf, lgammaf_wrap, wrap_mpfr_lgamma, 1, 1, f1, 1)
+ F (_ZGVnN2v_lgamma, Z_lgamma, lgammal_wrap, wrap_mpfr_lgamma, 1, 0, d1, 1)
  F (_ZGVnN4vv_powf, Z_powf, pow, mpfr_pow, 2, 1, f2, 1)
  F (_ZGVnN2vv_pow, Z_pow, powl, mpfr_pow, 2, 0, d2, 1)
  F (_ZGVnN4vl4l4_sincosf_sin, v_sincosf_sin, sin, mpfr_sin, 1, 1, f1, 0)
