@@ -1,7 +1,7 @@
 /*
  * Function wrappers for mathbench.
  *
- * Copyright (c) 2022-2025, Arm Limited.
+ * Copyright (c) 2022-2026, Arm Limited.
  * SPDX-License-Identifier: MIT OR Apache-2.0 WITH LLVM-exception
  */
 
@@ -40,6 +40,17 @@ powi_wrap (double x)
   return __builtin_powi (x, (int) round (x));
 }
 #endif /* WANT_EXPERIMENTAL_MATH.  */
+
+static float
+lgammaf_r_wrap (float x)
+{
+#if defined (__APPLE__) || defined (_WIN32)
+  return lgammaf (x);
+#else
+  int sign;
+  return lgammaf_r (x, &sign);
+#endif
+}
 
 #if __aarch64__ && __linux__
 

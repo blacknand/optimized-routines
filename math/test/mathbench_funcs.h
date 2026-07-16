@@ -1,7 +1,7 @@
 /*
  * Function entries for mathbench.
  *
- * Copyright (c) 2022-2025, Arm Limited.
+ * Copyright (c) 2022-2026, Arm Limited.
  * SPDX-License-Identifier: MIT OR Apache-2.0 WITH LLVM-exception
  */
 /* clang-format off */
@@ -11,6 +11,11 @@ D (ypow, -9.9, 9.9)
 {"powf", 'f', 0, 0.01, 11.1, {.f = xypowf}},
 F (xpowf, 0.01, 11.1)
 F (ypowf, -9.9, 9.9)
+#if defined (__APPLE__) || defined (_WIN32)
+{"lgammaf", 'f', 0, -10.0, 10.0, {.f = lgammaf_r_wrap}},
+#else
+{"lgammaf_r", 'f', 0, -10.0, 10.0, {.f = lgammaf_r_wrap}},
+#endif
 {"sincosf", 'f', 0, 0.1, 0.7, {.f = sincosf_wrap}},
 {"sincosf", 'f', 0, 0.8, 3.1, {.f = sincosf_wrap}},
 {"sincosf", 'f', 0, -3.1, 3.1, {.f = sincosf_wrap}},
@@ -63,6 +68,7 @@ F (arm_math_erff, -4.0, 4.0)
 {"_ZGVnN2vl8l8_sincos", 'd', 'n', -3.1, 3.1, {.vnd = _Z_sincos_wrap}},
 {"_ZGVnN4v_cexpif", 'f', 'n', -3.1, 3.1, {.vnf = _Z_cexpif_wrap}},
 {"_ZGVnN2v_cexpi", 'd', 'n', -3.1, 3.1, {.vnd = _Z_cexpi_wrap}},
+VNF (_ZGVnN4v_lgammaf, -10.0, 10.0)
 VNF (_ZGVnN4v_expf_1u, -9.9, 9.9)
 VNF (_ZGVnN4v_exp2f_1u, -9.9, 9.9)
 # if WANT_EXPERIMENTAL_MATH

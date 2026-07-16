@@ -23,6 +23,7 @@ static int sincos_mpfr_sin(mpfr_t y, const mpfr_t x, mpfr_rnd_t r) { mpfr_cos(y,
 static int sincos_mpfr_cos(mpfr_t y, const mpfr_t x, mpfr_rnd_t r) { mpfr_sin(y,x,r); return mpfr_cos(y,x,r); }
 static int modf_mpfr_frac(mpfr_t f, const mpfr_t x, mpfr_rnd_t r) { MPFR_DECL_INIT(i, 80); return mpfr_modf(i,f,x,r); }
 static int modf_mpfr_int(mpfr_t i, const mpfr_t x, mpfr_rnd_t r) { MPFR_DECL_INIT(f, 80); return mpfr_modf(i,f,x,r); }
+static int wrap_mpfr_lgamma(mpfr_t ret, const mpfr_t x, mpfr_rnd_t rnd) { int sign; return mpfr_lgamma(ret, &sign, x, rnd); }
 static int mpfr_rsqrt (mpfr_t ret, const mpfr_t arg, mpfr_rnd_t rnd){
   MPFR_DECL_INIT (m, 1080);
   MPFR_DECL_INIT (one, 1080);
@@ -178,6 +179,7 @@ double modf_frac(double x) { double i; return modf(x, &i); }
 double modf_int(double x) { double i; modf(x, &i); return i; }
 long double modfl_frac(long double x) { long double i; return modfl(x, &i); }
 long double modfl_int(long double x) { long double i; modfl(x, &i); return i; }
+double lgammaf_wrap(double x) { return lgammaf((float) x); }
 
 static double
 cr_exp (double x)
@@ -189,6 +191,7 @@ cr_exp (double x)
 #if __aarch64__ && __linux__
 static float Z_expf_1u(float x) { return _ZGVnN4v_expf_1u(argf(x))[0]; }
 static float Z_exp2f_1u(float x) { return _ZGVnN4v_exp2f_1u(argf(x))[0]; }
+static float Z_lgammaf(float x) { return _ZGVnN4v_lgammaf(argf(x))[0]; }
 # if WANT_EXPERIMENTAL_MATH
 static float Z_fast_cosf(float x) { return arm_math_advsimd_fast_cosf(argf(x))[0]; }
 static float Z_fast_sinf(float x) { return arm_math_advsimd_fast_sinf(argf(x))[0]; }
