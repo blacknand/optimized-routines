@@ -92,7 +92,7 @@ L(loop):
 	b.any	L(loop_end)	// If chr or null are found, move to end.
 L(loop2):
 	ld1b	{zdata.b}, pall/z, [src, 1, mul vl]	// Read next chunk.
-	incb	src, all, mul 2				// Increment by 2xVL.
+	incb	src, all, mul #2			// Increment by 2xVL.
 	match	pchr_nul.b, pall/z, zdata.b, zchr_nul.b	// Find chr or null.
 	b.none	L(loop)		// If chr or null are not found, repeat loop.
 
