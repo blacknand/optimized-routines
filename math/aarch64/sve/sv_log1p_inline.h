@@ -2,7 +2,7 @@
  * Helper for SVE double-precision routines which calculate log(1 + x) and do
  * not need special-case handling
  *
- * Copyright (c) 2022-2025, Arm Limited.
+ * Copyright (c) 2022-2026, Arm Limited.
  * SPDX-License-Identifier: MIT OR Apache-2.0 WITH LLVM-exception
  */
 #ifndef MATH_SV_LOG1P_INLINE_H
@@ -90,10 +90,7 @@ sv_log1p_inline (svfloat64_t x, const svbool_t pg)
      that the approximation is solely the polynomial.  */
   svbool_t knot0 = svcmpne (pg, k, 0);
   cm = svdiv_z (knot0, c, m);
-  if (likely (!svptest_any (pg, knot0)))
-    {
-      f = svsel (knot0, f, x);
-    }
+  f = svsel (knot0, f, x);
 #else
   /* No shortcut.  */
   cm = svdiv_x (pg, c, m);

@@ -1,7 +1,7 @@
 /*
  * Single-precision SVE x^y function.
  *
- * Copyright (c) 2023-2025, Arm Limited.
+ * Copyright (c) 2023-2026, Arm Limited.
  * SPDX-License-Identifier: MIT OR Apache-2.0 WITH LLVM-exception
  */
 
@@ -76,8 +76,8 @@ svfloat32_t SV_NAME_F2 (pow) (svfloat32_t x, svfloat32_t y, const svbool_t pg)
   svuint32_t vix = vix0;
   if (unlikely (svptest_any (pg, xisneg)))
     {
-      /* Determine nature of y.  */
-      yint_or_xpos = svisint (xisneg, y);
+      /* Determine nature of y, preserving lanes where x isn't negative.  */
+      yint_or_xpos = svorn_z (pg, svisint (xisneg, y), xisneg);
       svbool_t yisodd_xisneg = svisodd (xisneg, y);
       /* ix set to abs(ix) if y is integer.  */
       vix = svand_m (yint_or_xpos, vix0, 0x7fffffff);

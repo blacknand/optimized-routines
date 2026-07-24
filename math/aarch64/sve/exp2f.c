@@ -79,13 +79,13 @@ special_case (svfloat32_t x, const svbool_t pg, const struct data *d)
      scale = 2^(n/N - 23).  */
   z = svsub_x (pg, z, offset);
   svfloat32_t scale = svexpa (svreinterpret_u32 (z));
-  svfloat32_t scale_r = svmul_x (pg, scale, r);
 
   /* poly(r) = (exp2(r) - 1) / r = log(2) + r*log(2)^2/2.  */
   svfloat32_t poly = svmla_x (pg, sv_f32 (d->c0), r, sv_f32 (d->c1));
+  poly = svmul_x (svptrue_b32 (), poly, r);
 
   /* Reconstruct y as 2^(n - 23) * (1 + r * poly(r)).  */
-  svfloat32_t y = svmla_x (pg, scale, scale_r, poly);
+  svfloat32_t y = svmla_x (pg, scale, scale, poly);
 
   /* Scale the result by 2^23:
      2^n * (1 + r * poly(r))
