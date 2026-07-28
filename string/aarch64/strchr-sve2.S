@@ -22,93 +22,84 @@
 #define FUNC  __strchr_aarch64_sve2
 #endif
 
-#define srcin		x0		// const char* src.
 #define chrin		w1		// int chr.
 #define result		x0		// Return.
 
+#define src		x0		// Current data pointer.
 #define	vlalign		x2		// Alignment mask.
-#define	src		x3		// Current data pointer.
+#define	tmp		x3
 
 #define zdata		z0		// Data.
-#define zchr_nul	z1		// chr and null data for search.
+#define zchr_nul	z1		// chr and NUL data for search.
 
 #define pall		p0		// All active predicate.
-#define pchr_nul	p1		// chr and null search result.
+#define pchr_nul	p1		// chr and NUL search result.
 #define pchr		p2		// chr search result.
 #define psrc		p3		// Mask of chars before srcin.
 #define pfirst		p4		// First found.
 
 ENTRY (FUNC)
-	mov	vlalign, -1		// Create alignment mask based on VL.
-	incb	vlalign
+	ptrue	pall.b
 	and	chrin, chrin, 0xff	// Set zeros after first byte.
-	dup	zchr_nul.h, chrin	// Initialize chr and null for search.
-	bic	src, srcin, vlalign	// Align src to VL.
-	ptrue	pall.b			// Initialize all active.
+	dup	zchr_nul.h, chrin	// Initialize chr and NUL for search.
 
-	ld1b	{zdata.b}, pall/z, [src]	// Read next chunk.
-	match	pchr_nul.b, pall/z, zdata.b, zchr_nul.b	// Find chr or null.
-	b.none	L(loop2)
+	and	tmp, src, 0xfff		// Check for pagecross of 2VL reads.
+	incb	tmp, all, mul #2
+	tbnz	tmp, 12, L(pagecross)
 
-	brkb	pfirst.b, pall/z, pchr_nul.b	// Find first element.
-	incp	src, pfirst.b		// Increment result by element index.
-	cmp	src, srcin		// Is result before srcin?
-	b.lo	L(first_chunk)		// If yes, special case first chunk.
-
-#if !defined (BUILD_STRCHRNUL)
-	cbz	chrin, L(match0)		// Special case NUL char.
-	cmpne	pchr.b, pchr_nul/z, zdata.b, 0	// Matched search char or NUL?
-	csel	result, src, xzr, first		// If it is NUL, return null.
-	ret
-
-L(match0):
-	mov	result, src
-	ret
-#endif
-
-	.p2align 4
-L(first_chunk):
-	bic	src, srcin, vlalign
-	whilelo psrc.b, src, srcin		// Mask for chars before src.
-	bics	pchr_nul.b, pall/z, pchr_nul.b, psrc.b // Remove early matches.
-	b.none	L(loop2)
-
+	ld1b	{zdata.b}, pall/z, [src]
+	match	pchr_nul.b, pall/z, zdata.b, zchr_nul.b
+	b.any	L(firstmatch)
+	ld1b	{zdata.b}, pall/z, [src, 1, mul vl]
+	match	pchr_nul.b, pall/z, zdata.b, zchr_nul.b
+	b.none	L(loop_start)
+	incb	src
+L(firstmatch):
 	brkb	pfirst.b, pall/z, pchr_nul.b	// Find first element.
 	incp	src, pfirst.b			// Increment by element index.
 #if !defined (BUILD_STRCHRNUL)
-	cbz	chrin, L(match0)		// Special case NUL char.
-	cmpne	pchr.b, pchr_nul/z, zdata.b, 0	// Matched search char or NUL?
+	cbz	chrin, 1f			// Special case NUL chrin.
+	cmpne	pchr.b, pchr_nul/z, zdata.b, 0	// Matched chrin?
 	csel	result, src, xzr, first		// If it is NUL, return null.
-	ret
+1:	ret
+	nop
 #else
-	mov	result, src
 	ret
 #endif
-
-	.p2align 4
+L(loop_start):
+	mov	vlalign, 0
+	decb	vlalign
+	and	src, src, vlalign		// Align src to VL.
 L(loop):
-	ld1b	{zdata.b}, pall/z, [src]	// Read next chunk.
-	match	pchr_nul.b, pall/z, zdata.b, zchr_nul.b	// Find chr or null.
-	b.any	L(loop_end)	// If chr or null are found, move to end.
+	ld1b	{zdata.b}, pall/z, [src, 2, mul vl]
+	incb	src, all, mul #2
+	match	pchr_nul.b, pall/z, zdata.b, zchr_nul.b
+	b.any	L(loop_end)
 L(loop2):
-	ld1b	{zdata.b}, pall/z, [src, 1, mul vl]	// Read next chunk.
-	incb	src, all, mul #2			// Increment by 2xVL.
-	match	pchr_nul.b, pall/z, zdata.b, zchr_nul.b	// Find chr or null.
-	b.none	L(loop)		// If chr or null are not found, repeat loop.
-
-	decb	src				// Decrement by VL.
-
+	ld1b	{zdata.b}, pall/z, [src, 1, mul vl]
+	match	pchr_nul.b, pall/z, zdata.b, zchr_nul.b
+	b.none	L(loop)
+	incb	src
 L(loop_end):
 	brkb	pfirst.b, pall/z, pchr_nul.b	// Find first element.
 	incp	src, pfirst.b			// Increment by element index.
 #if !defined (BUILD_STRCHRNUL)
-	cbz	chrin, L(match0)		// Special case NUL char.
-	cmpne	pchr.b, pchr_nul/z, zdata.b, 0	// Matched search char or NUL?
+	cbz	chrin, 2f			// Special case NUL chrin.
+	cmpne	pchr.b, pchr_nul/z, zdata.b, 0	// Matched chrin?
 	csel	result, src, xzr, first		// If it is NUL, return null.
-	ret
-#else
-	mov	result, src
-	ret
 #endif
+2:	ret
+
+	.p2align 3
+L(pagecross):
+	mov	vlalign, 0
+	decb	vlalign
+	orn	tmp, src, vlalign		// Find end of VL aligned src.
+	whilels	psrc.b, src, tmp		// Mask off elements.
+	ld1b	{zdata.b}, psrc/z, [src]
+	match	pchr_nul.b, psrc/z, zdata.b, zchr_nul.b
+	b.any	L(firstmatch)
+	and	src, src, vlalign		// Align src to VL.
+	b	L(loop2)
 
 END (FUNC)
