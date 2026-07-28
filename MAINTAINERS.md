@@ -18,6 +18,7 @@
 - Pierre Blanchard <[pierre.blanchard@arm.com](mailto:pierre.blanchard@arm.com)>
 - Dylan Fleming <[dylan.fleming@arm.com](mailto:dylan.fleming@arm.com)>
 - Joe Ramsay <[joe.ramsay@arm.com](mailto:joe.ramsay@arm.com)>
+- Thomas Daubney <[thomas.daubney@arm.com](mailto:thomas.daubney@arm.com)>
 
 ### Networking
 
