@@ -3,6 +3,9 @@
  *
  * Copyright (c) 2012-2026, Arm Limited.
  * SPDX-License-Identifier: MIT OR Apache-2.0 WITH LLVM-exception
+ *
+ * This version must NEVER be upstreamed.
+ *
  */
 
 /* Assumptions:
@@ -28,7 +31,8 @@
 
 ENTRY_ALIAS (__memset_scalar_sc)
 ENTRY (__memset_scalar)
-	/* Replicate the fill byte across the last half of the word.  */
+	/* Replicate the fill byte across the last half of the word.  
+	   This fills the entire 32-bit word with the value passed in. */
 	and	valw, valw, 255
 	orr	valw, valw, valw, lsl 8
 	orr	valw, valw, valw, lsl 16
@@ -83,6 +87,14 @@ L(set_lt16):
 
 	.p2align 4
 L(set_gt64):
+	/*
+		15 = 1111, so dst = dstin & ~15 clears the lowest four bits:
+			dstin: xxxx xxxx xxxx abcd
+			mask:  0000 0000 0000 1111
+			dst:   xxxx xxxx xxxx 0000
+		every multiple of 16 ends if four zero bits, so clearing those bits discards
+		the remainder after division by 16
+	 */
 	bic	dst, dstin, 15		/* Align dst down to 16 bytes.  */
 	cmp	count, 128
 	b.hi	L(set_gt128)
@@ -107,10 +119,16 @@ L(set_gt128):
 
 	/* We can use DC ZVA to zero memory when the fill byte is zero and the block
 	   size reported by DCZID_EL0 is 64 bytes.  */
+	   // if valw != 0, then no zeroing so branch to no_zva
 	cbnz valw, L(no_zva)
 #ifndef SKIP_ZVA_CHECK
 	mrs	zva_val, dczid_el0
+	// keep only relevant 5 bits, 31 = 00011111,
+	// which preserves both BS [3:0] and DZP[4]
+	// DZP determines whether ZVA is prohibited
+	// ZVA block size = 4 × 2^BS bytes where BS is bits [3:0] of dczid_el0
 	and	zva_val, zva_val, 31
+	/* code specifically uses 64-byte blocks so zva_val must be 4 for the code to work */
 	cmp	zva_val, 4
 	b.ne	L(no_zva)
 #endif
@@ -122,6 +140,7 @@ L(set_gt128):
 	/* Compute count, accounting for the stores above and bias for the loop
 	   exit.  */
 	sub	count, dstend, dst
+	// the beginning 64 byte store and the ending 64 byte store (the final four stores below)
 	sub	count, count, 64 + 64
 
 	/* Write last bytes before entering ZVA loop.  */
@@ -132,6 +151,12 @@ L(set_gt128):
 
 	.p2align 4
 L(zva64_loop):
+	/*
+		bic  dst, dstin, 63   // align to a 64-byte boundary
+		add  dst, dst, 64     // advance by 64 bytes
+		dc   zva, dst         // zero one hardware block
+		subs count, count, 64 // account for 64 bytes
+	*/
 	add	dst, dst, 64
 	dc	zva, dst		/* Zero the 64-byte cache block containing dst.  */
 	subs	count, count, 64
@@ -143,6 +168,8 @@ L(no_zva):
 	/* Compute count, accounting for the two stores in set_gt128 and bias for
 	   the loop exit.  */
 	sub	count, dstend, dst
+	/* 32 is the first 2 stp instructions in set_g128 and then 64 is the last 4 stp instructions 
+	so count == 104 probably after this */
 	sub	count, count, 64 + 32
 
 L(no_zva_loop):

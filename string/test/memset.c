@@ -30,6 +30,7 @@ static const struct fun
   F(__memset_aarch64_sve, 1)
 # endif
 # if __ARM_FEATURE_SVE2
+  F(__memset_sve_optimized, 1)
 # endif
 # if WANT_MOPS
   F(__memset_aarch64_mops, 1)

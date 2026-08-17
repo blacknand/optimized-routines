@@ -47,6 +47,7 @@ ENTRY (__memset_aarch64_sve)
 
 	.p2align 4
 L(set_16):
+	/* Only actual SVE instructions */
 	whilelo p0.b, xzr, count
 	st1b	z0.b, p0, [dstin]
 	ret

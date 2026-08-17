@@ -29,6 +29,7 @@ static uint8_t a[MAX_SIZE + 4096] __attribute__((__aligned__(4096)));
   RUNA64 (TESTFN, __memset_aarch64);		\
   RUNA64 (TESTFN, __memset_scalar);		\
   RUNSVE (TESTFN, __memset_aarch64_sve);	\
+  RUNSVE2 (TESTFN, __memset_sve_optimized);	\
   RUNMOPS (TESTFN, __memset_aarch64_mops);	\
   RUNA32 (TESTFN, __memset_arm);		\
   printf ("\n");
