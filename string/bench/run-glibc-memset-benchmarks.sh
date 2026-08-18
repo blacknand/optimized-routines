@@ -59,19 +59,28 @@ fi
 
 run_tests=true
 run_aor_benchmark=true
+skip_glibc_build=false
+skip_glibc_benchmark_build=false
 # run_neon=false
 for arg in "$@"; do
   case $arg in
     --no-test) run_tests=false ;;
     --no-aor-bench) run_aor_benchmark=false ;;
     # --run-neon) run_neon=true ;;
-    *) echo "usage: $0 [--no-test] [--no-aor-bench] [--run-neon]" >&2; exit 2 ;;
+    --skip-glibc-build) skip_glibc_build=true;;
+    --skip-glibc-benchmark-build) skip_glibc_benchmark_build=true;;
+    *) echo "usage: $0 [--no-test] [--no-aor-bench] [--run-neon] [--skip-glibc-build] [--skip-glibc-benchmark-build]" >&2; exit 2 ;;
   esac
 done
 
-# Build glibc
-make -C /work/gnu/src/glibc-build \
-  -j"$(nproc)"
+if ! $skip_glibc_build; then
+  # Build glibc
+  echo "Building glibc..."
+  make -C /work/gnu/src/glibc-build \
+    -j"$(nproc)"
+else
+  echo "Skipping glibc build"
+fi
 
 # Optionally skip the test
 if $run_tests; then
@@ -89,6 +98,12 @@ benchmarks=(
   # memset-zero-large
 )
 
+routines=(
+  generic_memset
+  __memset_generic
+  __memset_sve_optimized
+)
+
 # run neon implementation only once
 # run the memset benchmark family individually for each implementation
 # compare those benchmark results against each other
@@ -103,27 +118,42 @@ benchmarks=(
 # strchr
 
 results_root=/work/gnu/src/benchmark-results/memset-sve-optimized
-results_dir="$results_root/$(LC_ALL=C date -u +%a-%b-%d-%Y_%I-%M-%S-%p-UTC)"
+results_dir="$results_root/$(LC_ALL=C date -u +%a-%d-%b-%M-%H-GMT)"
 mkdir -p "$results_root"
 mkdir "$results_dir"
 
 # Build all selected glibc benchmark binaries once.  The runs below execute
 # those binaries directly through glibc's generated runtime wrapper.
-make -C /work/gnu/src/glibc-build \
-  bench-build \
-  BENCHSET=string-benchset \
-  "string-benchset=${benchmarks[*]}" \
-  -j"$(nproc)"
+if ! $skip_glibc_benchmark_build; then 
+  echo "Building glibc benchmarks..."
+  make -C /work/gnu/src/glibc-build \
+    bench-build \
+    BENCHSET=string-benchset \
+    "string-benchset=${benchmarks[*]}" \
+    -j"$(nproc)"
+else 
+  echo "Skipping glibc benchmark build..."
+fi
+
+# TODO: Investigate a [--no-neon] flag where neon benchmarks are completely skipped
+# and instead the current neon results are used. Note: this will require neon results
+# to actually exist
 
 for benchmark in "${benchmarks[@]}"; do
   benchmark_binary="/work/gnu/src/glibc-build/benchtests/bench-$benchmark"
 
+  # Run each routines benchmark 5 times, storing the results 1 by 1
   for run in {1..5}; do
-    echo "Running $benchmark ($run/5)"
-    taskset -c 3 \
-      /work/gnu/src/glibc-build/testrun.sh \
-      "$benchmark_binary" \
-      > "$results_dir/bench-$benchmark.run-$run.out"
+    for routine in "${routines[@]}"; do
+      routine_dir="$results_dir/$routine"
+      mkdir -p "$routine_dir"
+      echo "Running $benchmark: $routine ($run/5)"
+      GLIBC_BENCH_IMPL="$routine" \
+        taskset -c 3 \
+        /work/gnu/src/glibc-build/testrun.sh \
+        "$benchmark_binary" \
+        > "$routine_dir/bench-$benchmark.run-$run.out"
+    done
   done
 done
 
