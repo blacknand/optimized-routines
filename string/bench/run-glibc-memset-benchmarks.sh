@@ -67,9 +67,16 @@ for arg in "$@"; do
     --no-test) run_tests=false ;;
     --no-aor-bench) run_aor_benchmark=false ;;
     # --run-neon) run_neon=true ;;
-    --skip-glibc-build) skip_glibc_build=true;;
-    --skip-glibc-benchmark-build) skip_glibc_benchmark_build=true;;
-    *) echo "usage: $0 [--no-test] [--no-aor-bench] [--run-neon] [--skip-glibc-build] [--skip-glibc-benchmark-build]" >&2; exit 2 ;;
+    --skip-glibc-build) skip_glibc_build=true ;;
+    --skip-glibc-benchmark-build) skip_glibc_benchmark_build=true ;;
+    *)
+      printf 'usage: %s [--no-test]\n' "$0" >&2
+      printf '  [--no-aor-bench]\n' >&2
+      printf '  [--run-neon (experimental)]\n' >&2
+      printf '  [--skip-glibc-build]\n' >&2
+      printf '  [--skip-glibc-benchmark-build]\n' >&2
+      exit 2
+      ;;
   esac
 done
 
