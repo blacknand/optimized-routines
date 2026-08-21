@@ -3,20 +3,27 @@
 import argparse
 import json
 from pathlib import Path
+from shutil import get_terminal_size
+from statistics import fmean, median
 
-# BASELINE = "__memset_generic"
-BASELINE = "__memset_generic"
+BENCHMARK = "bench-memset"
 RUN_COUNT = 5
 
-BENCHMARKS = (
-    "bench-memset",
-    # "bench-memset-large",
-    # "bench-memset-random",
-    # "bench-memset-zero",
-    # "bench-memset-zero-large",
-)
 
 def load_run(path):
+    """
+    Return a runs meta-data and results from the glibc benchmark
+    runs[0] = {
+        "bench-variant": "default",
+        "ifuncs": ["generic_memset"],
+        "results": [
+            result_1,
+            result_2,
+            # ...
+            result_1444,
+        ],
+    }
+    """
     with path.open("r", encoding="utf-8") as input_file:
         document = json.load(input_file)
 
@@ -29,6 +36,7 @@ def load_run(path):
             f"{path} does not have the expected glibc benchmark structure"
         ) from error
 
+    # All of the below is just generic error checking
     if not isinstance(ifuncs, list):
         raise ValueError(f"{path}: 'ifuncs' must be a list")
 
@@ -64,19 +72,26 @@ def load_run(path):
 
     return function_data
 
+
 def test_metadata(result):
+    # Create a new dictionary contianing everything except timings
     return {
         key: value
         for key, value in result.items()
         if key != "timings"
     }
 
-def validate_run_series(benchmark, runs):
-    reference = runs[0]
 
-    if BASELINE not in reference["ifuncs"]:
+def validate_run_series(label, runs):
+    if not runs:
+        raise ValueError(f"{label}: no runs were loaded")
+
+    # Run 1 is the reference for which runs 2-5 are compared against
+    reference = runs[0]
+    if len(reference["ifuncs"]) != 1:
         raise ValueError(
-            f"{benchmark}: baseline {BASELINE} is missing"
+            f"{label}: expected one implementation, "
+            f"found {len(reference['ifuncs'])}"
         )
 
     reference_metadata = [
@@ -84,10 +99,11 @@ def validate_run_series(benchmark, runs):
         for result in reference["results"]
     ]
 
+    # Ensure that the meta data for the candidate runs and baseline runs match
     for run_number, current_run in enumerate(runs[1:], start=2):
         if current_run["ifuncs"] != reference["ifuncs"]:
             raise ValueError(
-                f"{benchmark}: implementation order differs in run {run_number}"
+                f"{label}: implementation differs in run {run_number}"
             )
 
         current_metadata = [
@@ -95,182 +111,369 @@ def validate_run_series(benchmark, runs):
             for result in current_run["results"]
         ]
 
+        # Reject if the metadata differs, not the timing.
+        # The timing can be different (expected) but the metadata cannot
         if current_metadata != reference_metadata:
             raise ValueError(
-                f"{benchmark}: test cases differ in run {run_number}"
+                f"{label}: test cases differ in run {run_number}"
             )
 
-def load_all_runs(results_directory):
-    benchmark_runs = {}
 
-    for benchmark in BENCHMARKS:
-        runs = []
+def load_all_runs(run_directory):
+    """Load all runs for a benchmark family"""
+    runs = []
 
-        for run_number in range(1, RUN_COUNT + 1):
-            filename = f"{benchmark}.run-{run_number}.out"
-            path = results_directory / filename
-            runs.append(load_run(path))
+    for run_number in range(1, RUN_COUNT + 1):
+        filename = f"{BENCHMARK}.run-{run_number}.out"
+        path = run_directory / filename
+        runs.append(load_run(path))
 
-        validate_run_series(benchmark, runs)
-        benchmark_runs[benchmark] = runs
+    validate_run_series(run_directory.name, runs)
+    return runs
 
-    return benchmark_runs
 
-"""
-Variants:
-    + The result directory contains:
-        + Five bench-memset runs
-        + Five bench-memset-random runs
-        ...
-      Each file contains measurements for different lengths, alignments
-      and fill values.
-
-Data from the glibc benchmark JSON output:
-    + 1 run of a specific benchmark = 1 run-n.out file
-    + For each run, there are n results (memset calls/tests) where each result contains an array
-      of timing results for each implementation. For example, if there are 4 memset implementations, then
-      there are 4 timing results in the array.
-    + 
-"""
-
-def summarize_benchmark_family(runs, candidate):
-    """Calculate candidate-versus-baseline averages for each run and family."""
-    if not runs:
-        raise ValueError("cannot summarize a benchmark family with no runs")
-
-    ifuncs = runs[0]["ifuncs"]
-
-    try:
-        candidate_index = ifuncs.index(candidate)
-        baseline_index = ifuncs.index(BASELINE)
-    except ValueError as error:
+def validate_matching_series(candidate_runs, baseline_runs):
+    if len(candidate_runs) != len(baseline_runs):
         raise ValueError(
-            f"benchmark family must contain {candidate} and {BASELINE}"
-        ) from error
-
-    run_summaries = []
-    family_candidate_total = 0.0
-    family_baseline_total = 0.0
-
-    for run_number, run in enumerate(runs, start=1):
-        results = run["results"]
-
-        if not results:
-            raise ValueError(f"run {run_number} contains no results")
-
-        candidate_total = 0.0
-        baseline_total = 0.0
-
-        for result in results:
-            candidate_total += result["timings"][candidate_index]
-            baseline_total += result["timings"][baseline_index]
-
-        # The average for the candidate and the baseline are calculated the same way
-        result_count = len(results)
-        candidate_average = candidate_total / result_count
-        baseline_average = baseline_total / result_count
-
-        if baseline_average == 0:
-            raise ValueError(f"run {run_number} has a zero baseline average")
-
-        """
-        The baseline is the reference implementation against which the specified routine implementation
-        is measured against. The timings are as follows:
-            + Positive: candidate is slower than baseline
-            + Negative: candidate is faster
-            + Zero: equal average timing
-        """
-        percentage = (
-            (candidate_average - baseline_average)
-            / baseline_average
-            * 100
+            "candidate and baseline contain different numbers of runs"
         )
 
-        run_summaries.append(
-            {
-                "run": run_number,
-                "candidate_average": candidate_average,
-                "baseline_average": baseline_average,
-                "percentage": percentage,
-            }
-        )
+    # For run number, and a pair of the baseline test and candidate test
+    for run_number, (candidate_run, baseline_run) in enumerate(
+        zip(candidate_runs, baseline_runs), start=1
+    ):
+        # For each run, check candidate and baseline meta data match
+        candidate_metadata = [
+            test_metadata(result)
+            for result in candidate_run["results"]
+        ]
+        baseline_metadata = [
+            test_metadata(result)
+            for result in baseline_run["results"]
+        ]
 
-        family_candidate_total += candidate_average
-        family_baseline_total += baseline_average
+        if candidate_metadata != baseline_metadata:
+            raise ValueError(
+                f"candidate and baseline test cases differ in run {run_number}"
+            )
 
-    run_count = len(runs)
-    family_candidate_average = family_candidate_total / run_count
-    family_baseline_average = family_baseline_total / run_count
 
-    if family_baseline_average == 0:
-        raise ValueError("benchmark family has a zero baseline average")
+def percentage_difference(candidate_timing, baseline_timing, context):
+    """
+    + Negative means the candidate is faster
+    + Zero means equal timing
+    + Positive means the candidate is slower
+    """
+    if baseline_timing == 0:
+        raise ValueError(f"{context} has a zero baseline timing")
 
-    family_percentage = (
-        (family_candidate_average - family_baseline_average)
-        / family_baseline_average
+    return (
+        (candidate_timing - baseline_timing)
+        / baseline_timing
         * 100
     )
 
+
+def summarize_benchmark_family(candidate_runs, baseline_runs):
+    """
+    Return five individual run summaries and one overall family summary
+    """
+    if not candidate_runs or not baseline_runs:
+        raise ValueError("candidate and baseline runs must not be empty")
+
+    # Ensure the candidate and baseline tests match first
+    validate_matching_series(candidate_runs, baseline_runs)
+
+    candidate_name = candidate_runs[0]["ifuncs"][0]
+    baseline_name = baseline_runs[0]["ifuncs"][0]
+    run_summaries = []
+
+    # These summaries describe each individual run.  Each test receives equal
+    # weight because its percentage is calculated before the run average.
+    for run_number, (candidate_run, baseline_run) in enumerate(
+        zip(candidate_runs, baseline_runs), start=1
+    ):
+        # This will store one percentage for each of the current runs 1444 tests
+        run_percentages = []
+
+        # Calculate the run percentage difference for each result horizontally
+        for test_number, (candidate_result, baseline_result) in enumerate(
+            zip(candidate_run["results"], baseline_run["results"]), start=1
+        ):
+            # Percentage difference between corresponding individiaul tests 
+            # across the same run for both the canddiate and the baseline
+            run_percentages.append(
+                percentage_difference(
+                    candidate_result["timings"][0],
+                    baseline_result["timings"][0],
+                    f"run {run_number}, test {test_number}",
+                )
+            )
+
+        if not run_percentages:
+            raise ValueError(f"run {run_number} contains no results")
+
+        # Add into the run_summaries the mean of the percentage differences
+        # for all 1444 tests for the current run
+        run_summaries.append(
+            {
+                "run": run_number,
+                "percentage": fmean(run_percentages),
+            }
+        )
+
+    # Preserve every result position as a distinct test.  For each position,
+    # reduce the five repeated candidate and baseline measurements to medians,
+    # then calculate one candidate-versus-baseline percentage.
+    result_count = len(candidate_runs[0]["results"])
+    test_percentages = []
+
+    for test_index in range(result_count):
+        # Median of timings for all timings at text_index
+        # across all 5 runs
+
+        """
+        For test 100 it is equivelant to:
+            candidate_runs[0]["results"][99]["timings"][0]
+            candidate_runs[1]["results"][99]["timings"][0]
+            candidate_runs[2]["results"][99]["timings"][0]
+            candidate_runs[3]["results"][99]["timings"][0]
+            candidate_runs[4]["results"][99]["timings"][0]
+        """
+        candidate_median = median(
+            run["results"][test_index]["timings"][0]
+            for run in candidate_runs
+        )
+        baseline_median = median(
+            run["results"][test_index]["timings"][0]
+            for run in baseline_runs
+        )
+        test_percentages.append(
+            percentage_difference(
+                candidate_median,
+                baseline_median,
+                f"test {test_index + 1}",
+            )
+        )
+
+    if not test_percentages:
+        raise ValueError("benchmark family contains no test results")
+
+    winning_test_count = sum(
+        percentage < 0
+        for percentage in test_percentages
+    )
+
     return {
+        "candidate": candidate_name,
+        "baseline": baseline_name,
         "runs": run_summaries,
         "family": {
-            "candidate_average": family_candidate_average,
-            "baseline_average": family_baseline_average,
-            "percentage": family_percentage,
+            "test_count": len(test_percentages),
+            "test_percentages": test_percentages,
+            "average_percentage": fmean(test_percentages),
+            "winning_test_count": winning_test_count,
+            "winning_tests_percentage": (
+                winning_test_count / len(test_percentages) * 100
+            ),
+            "best_percentage": min(test_percentages),
+            "worst_percentage": max(test_percentages),
         },
     }
 
+
+def percentage_description(percentage):
+    if percentage < 0:
+        return "candidate faster"
+    if percentage > 0:
+        return "candidate slower"
+    return "same timing"
+
+
+def graph_range(percentages):
+    lower = min(0, min(percentages))
+    upper = max(0, max(percentages))
+
+    if lower == upper:
+        padding = max(abs(lower) * 0.05, 1.0)
+    else:
+        padding = (upper - lower) * 0.05
+
+    return lower - padding, upper + padding
+
+
+def print_terminal_graph(summary):
+    """Print a compact scatter graph that fits the current terminal."""
+    percentages = summary["family"]["test_percentages"]
+    average = summary["family"]["average_percentage"]
+    lower, upper = graph_range(percentages)
+    plot_height = 20
+    terminal_width = get_terminal_size(fallback=(100, 24)).columns
+    plot_width = max(20, min(100, terminal_width - 24))
+    grid = [[" " for _ in range(plot_width)] for _ in range(plot_height)]
+
+    def row_for(percentage):
+        return round(
+            (upper - percentage)
+            / (upper - lower)
+            * (plot_height - 1)
+        )
+
+    zero_row = row_for(0)
+    average_row = row_for(average)
+
+    for column in range(plot_width):
+        grid[zero_row][column] = "-"
+        grid[average_row][column] = "="
+
+    test_denominator = max(len(percentages) - 1, 1)
+    for test_index, percentage in enumerate(percentages):
+        column = round(test_index / test_denominator * (plot_width - 1))
+        grid[row_for(percentage)][column] = "*"
+
+    labelled_rows = {
+        0,
+        plot_height // 4,
+        plot_height // 2,
+        plot_height * 3 // 4,
+        plot_height - 1,
+        zero_row,
+        average_row,
+    }
+
+    print("\nTerminal graph")
+    print("  Median-based percentage difference for each test.")
+    for row_number, row in enumerate(grid):
+        if row_number == zero_row:
+            label = "+0.0%"
+        elif row_number == average_row:
+            label = f"{average:+.1f}%"
+        elif row_number in labelled_rows:
+            percentage = (
+                upper
+                - row_number / (plot_height - 1) * (upper - lower)
+            )
+            label = f"{percentage:+.1f}%"
+        else:
+            label = ""
+
+        annotation = ""
+        if row_number == average_row:
+            annotation = " average"
+        if row_number == zero_row:
+            annotation += " baseline"
+
+        print(f"{label:>10} |{''.join(row)}|{annotation}")
+
+    axis_padding = max(plot_width - len(str(len(percentages))) - 1, 1)
+    print(f"{'':>10} +{'-' * plot_width}+")
+    print(
+        f"{'Test':>10}  1{' ' * axis_padding}{len(percentages)}"
+    )
+    print("  * = one or more tests; - = baseline; = = overall average")
+
+
 def main():
     parser = argparse.ArgumentParser(
-        usage="%(prog)s RESULTS_DIRECTORY --routine=<routine>"
+        usage=(
+            "%(prog)s --routine=<routine-directory> "
+            "--baseline=<baseline-directory> [--graph]"
+        )
     )
-    parser.add_argument("results_directory", type=Path)
     parser.add_argument(
         "--routine",
         required=True,
         help="memset implementation to compare against the NEON baseline",
+        type=Path,
+    )
+    parser.add_argument(
+        "--baseline",
+        required=True,
+        help="the baseline which is used to measure against the routine",
+        type=Path,
+    )
+    parser.add_argument(
+        "--graph",
+        action="store_true",
+        help="print a graph directly in the terminal",
     )
     arguments = parser.parse_args()
+    baseline_directory = arguments.baseline
+    candidate_directory = arguments.routine
 
-    results_directory = arguments.results_directory
-    candidate = arguments.routine
-
-    if not results_directory.is_dir():
+    if not baseline_directory.is_dir():
         raise SystemExit(
-            f"results directory does not exist: {results_directory}"
+            f"baseline directory does not exist: {baseline_directory}"
         )
 
-    benchmark_runs = load_all_runs(results_directory)
+    if not candidate_directory.is_dir():
+        raise SystemExit(
+            f"candidate directory does not exist: {candidate_directory}"
+        )
 
-    for benchmark, runs in benchmark_runs.items():
-        result_count = len(runs[0]["results"])
-        implementation_count = len(runs[0]["ifuncs"])
+    """
+    There exists two independent dimensions:
+                            Run
+                    1    2    3    4    5
+    Test 1        time time time time time
+    Test 2        time time time time time
+    Test 3        time time time time time
+    ...
+    Test 1444     time time time time time
 
+    For each test horizontally, the script reduces each record to its median
+    and calculates one percentage for that test.
+    """
+    # List of the 5 candidate runs, where each index will then contain the 1444 results
+    candidate_runs = load_all_runs(candidate_directory)
+    baseline_runs = load_all_runs(baseline_directory)
+    summary = summarize_benchmark_family(candidate_runs, baseline_runs)
+
+    print("Comparison")
+    print(f"  Candidate: {summary['candidate']}")
+    print(f"  Baseline:  {summary['baseline']}")
+    print("  Negative percentages mean the candidate is faster.")
+    print("  Positive percentages mean the candidate is slower.")
+
+    print("\nIndividual runs")
+    print("  Mean of the per-test differences in each matching run pair.")
+    for run_summary in summary["runs"]:
+        percentage = run_summary["percentage"]
         print(
-            f"{benchmark}: loaded {len(runs)} runs, "
-            f"{result_count} results and "
-            f"{implementation_count} implementations"
+            f"  Run {run_summary['run']}: {percentage:+.2f}% "
+            f"({percentage_description(percentage)})"
         )
 
-        family_summary = summarize_benchmark_family(runs, candidate)
+    family = summary["family"]
+    average = family["average_percentage"]
+    best = family["best_percentage"]
+    worst = family["worst_percentage"]
+    print("\nOverall benchmark family")
+    print(
+        f"  Each test uses the median timing from {RUN_COUNT} runs; "
+        f"{family['test_count']} tests total."
+    )
+    print(
+        f"  Average difference: {average:+.2f}% "
+        f"({percentage_description(average)})"
+    )
+    print(
+        f"  Winning tests: {family['winning_test_count']}/"
+        f"{family['test_count']} "
+        f"({family['winning_tests_percentage']:.2f}%)"
+    )
+    print(
+        f"  Best test: {best:+.2f}% "
+        f"({percentage_description(best)})"
+    )
+    print(
+        f"  Worst test: {worst:+.2f}% "
+        f"({percentage_description(worst)})"
+    )
 
-        for run_summary in family_summary["runs"]:
-            print(
-                f"  Run {run_summary['run']}: "
-                f"{candidate} average = "
-                f"{run_summary['candidate_average']:.2f}, "
-                f"{BASELINE} average = "
-                f"{run_summary['baseline_average']:.2f}, "
-                f"difference = {run_summary['percentage']:.2f}%"
-            )
+    if arguments.graph:
+        print_terminal_graph(summary)
 
-        overall = family_summary["family"]
-        print(
-            f"  Family: {candidate} average = "
-            f"{overall['candidate_average']:.2f}, "
-            f"{BASELINE} average = {overall['baseline_average']:.2f}, "
-            f"difference = {overall['percentage']:.2f}%"
-        )
 
 if __name__ == "__main__":
     main()
