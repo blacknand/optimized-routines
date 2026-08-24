@@ -57,28 +57,38 @@ if grep -Fq \
     "$impl_list"
 fi
 
+# TODO: add an option to only build and run tests for the modified memset.
+# For example, if I make a change to __memset_sve_optimized and I am benchmarking against __memset_generic,
+# then I will not be making any changes to __memset_generic so there is no point in building and benchmarking
+# __memset_generic. I should only test, build and benchmark routines where there has actually been a change.
+
+# NOTE: does make actually cache anything? Like with CMake, I am pretty sure if I build and then build again with no
+# changes it should still be really quick because CMake caches everything
+
+# TODO: Add flag to skip running benchmarks for every memset other than __memset_sve_optimized
+
+# TODO: List the top 5 worst cases and the parameters they use
+
 run_tests=true
 run_aor_benchmark=true
 skip_glibc_build=false
 skip_glibc_benchmark_build=false
-skip_neon=false
-# run_neon=false
+skip_all_benchmarks=true
 for arg in "$@"; do
   case $arg in
     --no-test) run_tests=false ;;
     --no-aor-bench) run_aor_benchmark=false ;;
-    # --run-neon) run_neon=true ;;
     --skip-glibc-build) skip_glibc_build=true ;;
     --skip-glibc-benchmark-build) skip_glibc_benchmark_build=true ;;
-    --skip-neon) skip_neon=true ;;
+    --skip-all-benchmarks) skip_all_benchmarks=true ;;
     *)
       printf 'usage: %s \n  [--no-test]\n' "$0" >&2
       printf '  [--no-aor-bench]\n' >&2
-      printf '  [--run-neon (experimental)]\n' >&2
       printf '  [--skip-glibc-build]\n' >&2
       printf '  [--skip-glibc-benchmark-build]\n' >&2
-      printf '  [--skip-neon (non-functional)]\n' >&2
+      printf '  [--skip-all-benchmarks]\n' >&2
       printf 'Note: to change the benchmark family, modify the benchmarks array in the script source\n' >&2
+      printf 'Note: The only reaason to ever use --skip-glibc-build or --skip-glibc-benchmark-build is if you are modifying this script itself\n' >&2
       exit 2
       ;;
   esac
@@ -113,28 +123,15 @@ benchmarks=(
 routines=(
   generic_memset
   __memset_sve_optimized
+  __memset_sve_zva64
+  __memset_generic
 )
 
-if ! $skip_neon; then
+if $skip_all_benchmarks; then
   routines=(
-    generic_memset
-    __memset_generic
     __memset_sve_optimized
   )
 fi
-
-# run neon implementation only once
-# run the memset benchmark family individually for each implementation
-# compare those benchmark results against each other
-# just the family run for the python script
-# 3.11% faster than the baseline strchr implementation being compared against
-# average for all tests against the baseline; not the results for each run
-# use the compiler baseline calcluations, etc.
-# -25% is the best test case, so 25% better than the generic strchr implementation
-# only calculate NEON once, then use those results to compare against my implementaion
-# only build once, rather than building for every run
-
-# strchr
 
 results_root=/work/gnu/src/benchmark-results/memset-sve-optimized
 results_dir="$results_root/$(LC_ALL=C date -u +%a-%d-%b-%M-%H-GMT)"
@@ -153,10 +150,6 @@ if ! $skip_glibc_benchmark_build; then
 else 
   echo "> Skipping glibc benchmark build..."
 fi
-
-# TODO: Investigate a [--no-neon] flag where neon benchmarks are completely skipped
-# and instead the current neon results are used. Note: this will require neon results
-# to actually exist
 
 for benchmark in "${benchmarks[@]}"; do
   benchmark_binary="/work/gnu/src/glibc-build/benchtests/bench-$benchmark"
