@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# TODO: Register __memset_aarch64_sve from memset-sve.S into glibc infra
+
 # If any command fails abort the entire script
 set -euo pipefail
 # If no Makefile exists in the glibc build, configure glibc again
@@ -63,7 +65,7 @@ fi
 # __memset_generic. I should only test, build and benchmark routines where there has actually been a change.
 
 # NOTE: does make actually cache anything? Like with CMake, I am pretty sure if I build and then build again with no
-# changes it should still be really quick because CMake caches everything
+# changes it should still be really quick because CMake caches everything. Else, do something to save time with building...
 
 # TODO: Add flag to skip running benchmarks for every memset other than __memset_sve_optimized
 
