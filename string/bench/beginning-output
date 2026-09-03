@@ -1,0 +1,54 @@
+Comparison
+  Candidate: __memset_sve_zva64
+  Baseline:  __memset_generic
+  Negative percentages mean the candidate is faster.
+  Positive percentages mean the candidate is slower.
+
+Individual runs
+  Mean of the per-test differences in each matching run pair.
+  Run 1: -4.50% (candidate faster)
+  Run 2: -5.40% (candidate faster)
+  Run 3: -3.94% (candidate faster)
+  Run 4: -4.26% (candidate faster)
+  Run 5: -4.73% (candidate faster)
+
+Overall benchmark family
+  Each test uses the median timing from 5 runs; 1444 tests total.
+  Average difference: -4.75% (candidate faster)
+  Winning tests: 858/1444 (59.42%)
+  Best test: -78.78% (candidate faster)
+  Worst test: +123.38% (candidate slower)
+
+Worst 5 tests across all runs
+  Ranked by percentage difference using median timings from 5 runs.
+  1. Test 30: +123.38% (candidate slower); length=3, alignment=4095, char=-65
+  2. Test 693: +122.46% (candidate slower); length=2, alignment=4095, char=65
+  3. Test 363: +122.45% (candidate slower); length=3, alignment=4095, char=0
+  4. Test 1029: +122.41% (candidate slower); length=3, alignment=4095, char=130
+  5. Test 360: +122.40% (candidate slower); length=2, alignment=4095, char=0
+
+Worst 5 individual results across all runs
+  Ranked by percentage difference between matching candidate and baseline results.
+  1. Run 1, test 116: +436.85% (candidate slower); length=25, alignment=0, char=-65
+  2. Run 2, test 363: +167.73% (candidate slower); length=3, alignment=4095, char=0
+  3. Run 5, test 30: +160.51% (candidate slower); length=3, alignment=4095, char=-65
+  4. Run 2, test 1026: +160.49% (candidate slower); length=2, alignment=4095, char=130
+  5. Run 4, test 30: +160.47% (candidate slower); length=3, alignment=4095, char=-65
+Random memset (bytes/ns):
+                memset 32K: 29.53 64K: 26.39 128K: 29.96 256K: 26.26 512K: 26.99 1024K: 25.59 avg 27.38
+      __memset_aarch64 32K: 31.48 64K: 35.12 128K: 29.08 256K: 30.62 512K: 29.07 1024K: 28.14 avg 30.43
+       __memset_scalar 32K: 30.04 64K: 31.78 128K: 26.50 256K: 28.93 512K: 27.85 1024K: 25.22 avg 28.23
+  __memset_aarch64_sve 32K: 36.93 64K: 28.91 128K: 35.81 256K: 29.39 512K: 27.94 1024K: 31.59 avg 31.43
+
+Medium memset (bytes/ns):
+                memset 8B:  7.46 16B: 14.91 32B: 14.07 64B: 14.62 128B: 55.74 256B: 100.71 512B: 118.86 
+      __memset_aarch64 8B:  7.45 16B: 17.88 32B: 14.91 64B: 29.82 128B: 59.63 256B: 102.14 512B: 129.39 
+       __memset_scalar 8B:  7.46 16B: 12.84 32B: 14.91 64B: 29.81 128B: 54.36 256B: 102.18 512B: 129.52 
+  __memset_aarch64_sve 8B: 11.18 16B: 17.88 32B: 14.91 64B: 29.82 128B: 59.64 256B: 101.88 512B: 128.75 
+
+Large memset (bytes/ns):
+                memset 1KB: 143.11 2KB: 154.73 4KB: 162.76 8KB: 160.82 16KB: 156.79 32KB: 151.00 64KB: 148.46 
+      __memset_aarch64 1KB: 150.65 2KB: 157.68 4KB: 164.24 8KB: 154.46 16KB: 160.06 32KB: 153.87 64KB: 148.44 
+       __memset_scalar 1KB: 150.65 2KB: 157.30 4KB: 162.72 8KB: 154.22 16KB: 157.89 32KB: 155.54 64KB: 149.52 
+  __memset_aarch64_sve 1KB: 150.70 2KB: 158.90 4KB: 164.64 8KB: 155.19 16KB: 157.67 32KB: 152.89 64KB: 149.03 
+

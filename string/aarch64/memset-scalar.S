@@ -40,37 +40,76 @@ ENTRY (__memset_scalar)
 	cmp	count, 16
 	b.lo	L(set_lt16)
 
-	/* Replicate the fill byte across the rest of the word.  */
+	/* Replicate the fill byte across the rest of the word (64-bit). */
 	orr	val, val, val, lsl 32
 
+	/* Why is this done? */
 	add	dstend, dstin, count
 	cmp	count, 64
 	b.hi	L(set_gt64)
 
 L(set_16_64):
+	/*
+		set_16_64 fills a destination containing between 16 and 64 bytes. It 
+		executes four 16-byte stores, positning them so that every requested
+		byte is covered and no store crosses either boundary. Four stores can
+		write 64-bytes in total, when the requested range is shorter than 64-bytes,
+		the stores overlap or repeat.
+	 */
+
 	/* Calculate an interior store offset based on half the count, This will be
-	  one of 0, 16 or 32 bytes. Then perform four overlapping stores.  */
+	  one of 0, 16 or 32 bytes. Then perform four overlapping stores.
+
+	   48 = 00110000, so off = off & (count >> 1), therefore:
+			- count = 16 - 31 -> 0 off meaning repeat the first and last 16-byte stores
+			- count = 32 - 63 -> 16 off meaning cover the first and last 32-bytes
+			- count = 64 -> 32 off meaning cover four distinct 16-byte sections
+
+	   The stratergy by size:
+	   	16-31 bytes:
+			write the first 16 and last 16 bytes. 
+			The code repeats those stores
+
+		32-63 bytes:
+			Write the first 32 and last 32 bytes.
+			These regions overlap or touch.
+		
+		64 bytes:
+			Write four distinct 16-byte sections.
+	  */
+
 	mov	off, 48
+	/* Shift right once, dividing count by 2. Bitwise AND
+	   then retains only the 16 and 32 bit positions. */
 	and	off, off, count, lsr 1
 	sub	dstend2, dstend, off
 
-	stp	val, val, [dstin]
-	add	off, dstin, off
-	stp	val, val, [off]
-	stp	val, val, [dstend2, -16]
+	/* Perform the stoes calculated above. */
+	stp	val, val, [dstin]					// Write 16-bytes beginning at dstin
+	// new memory address
+	add	off, dstin, off						
+	stp	val, val, [off]						// Write 16-bytes beginning at off
+	stp	val, val, [dstend2, -16]			// Write 16-bytes
 	stp	val, val, [dstend, -16]
 	ret
 
 	.p2align 4
 L(set_lt16):
+	/* 0-15 bytes */
 	add	dstend, dstin, count
 	cmp	count, 4
 	b.lo	1f
 
 	/* For sizes 4..15, salculate an interior offset based on the count. Then
-	   perform four overlapping 32 bit stores.  */
+	   perform four overlapping 32 bit (4-byte) stores.  */
 	lsr	off, count, 3				/* off = count >> 3.  */
-	sub	dstend2, dstend, off, lsl 2
+	sub	dstend2, dstend, off, lsl 2		/* dstend2 = dstend - (off << 2) */
+	/*
+		Is the reason valw and val (in other sections) is filled in with the fill byte
+		because the code is storing valw itself, and not just the fill byte (from value),
+		so the code below stores valw into all these locations and not just the low byte
+		of valw using strb?
+	 */
 	str	valw, [dstin]
 	str	valw, [dstin, off, lsl 2]
 	str	valw, [dstend2, -4]
@@ -114,6 +153,16 @@ L(set_gt64):
 L(set_gt128):
 	/* For sizes above 128, perform initial stores before entering loop on
 	   aligned addresses.  */
+	/*
+	why bother writing to dstin and then writing to dst which is the 16 byte aligned address.
+	i think the reason it does dst + 16 is because dst is guranteed to b 16 bytes below dstin,
+	or at least behind dstin but then why not just start writing at dst? is there memory
+	before dst that needs to be written?
+	 */
+	/*
+		without the dstin store, bytes between the unaligned destination and the next aligned
+		address would remain unwritten	
+	 */
 	stp	val, val, [dstin]
 	stp	val, val, [dst, 16]
 

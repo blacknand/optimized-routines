@@ -54,6 +54,7 @@ size_t __strnlen_aarch64_sve (const char *, size_t);
 int __strncmp_aarch64_sve (const char *, const char *, size_t);
 # endif
 # if __ARM_FEATURE_SVE2
+/* ^^ */
 void *__memset_sve_optimized (void *, int, size_t);
 char *__strchr_aarch64_sve2 (const char *, int);
 char *__strchrnul_aarch64_sve2 (const char *, int );

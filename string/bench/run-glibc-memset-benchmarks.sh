@@ -59,15 +59,8 @@ if grep -Fq \
     "$impl_list"
 fi
 
-# TODO: add an option to only build and run tests for the modified memset.
-# For example, if I make a change to __memset_sve_optimized and I am benchmarking against __memset_generic,
-# then I will not be making any changes to __memset_generic so there is no point in building and benchmarking
-# __memset_generic. I should only test, build and benchmark routines where there has actually been a change.
-
 # NOTE: does make actually cache anything? Like with CMake, I am pretty sure if I build and then build again with no
 # changes it should still be really quick because CMake caches everything. Else, do something to save time with building...
-
-# TODO: Add flag to skip running benchmarks for every memset other than __memset_sve_optimized
 
 # TODO: List the top 5 worst cases and the parameters they use
 
@@ -75,7 +68,7 @@ run_tests=true
 run_aor_benchmark=true
 skip_glibc_build=false
 skip_glibc_benchmark_build=false
-skip_all_benchmarks=true
+skip_all_benchmarks=false
 for arg in "$@"; do
   case $arg in
     --no-test) run_tests=false ;;
@@ -123,8 +116,8 @@ benchmarks=(
 )
 
 routines=(
-  generic_memset
-  __memset_sve_optimized
+  # generic_memset
+  # __memset_sve_optimized
   __memset_sve_zva64
   __memset_generic
 )
@@ -183,12 +176,10 @@ if $run_aor_benchmark; then
 
   echo "Running AoR benchmarks..."
   # Run memset benchmarks 5 times
-  for run in {1..5}; do
-    echo "[$run/5] Running benchmark "
-    taskset -c 3 \
-      /work/gnu/src/optimized-routines/build/bin/bench/memset \
-      > "$results_dir/aor-bench-memset.run-$run.out"
-  done
+  echo "Running AoR benchmark "
+  taskset -c 3 \
+    /work/gnu/src/optimized-routines/build/bin/bench/memset \
+    > "$results_dir/aor-bench-memset.run-$run.out"
 
   echo "> AoR benchmark results stored in $results_dir"
 fi

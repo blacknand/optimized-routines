@@ -22,6 +22,7 @@
 #define MIN_SIZE 32768
 #define MAX_SIZE (1024 * 1024)
 
+/* Each block is page is exactly 4096 bytes */
 static uint8_t a[MAX_SIZE + 4096] __attribute__((__aligned__(4096)));
 
 #define DOTEST(STR,TESTFN)			\
@@ -30,10 +31,11 @@ static uint8_t a[MAX_SIZE + 4096] __attribute__((__aligned__(4096)));
   RUNA64 (TESTFN, __memset_aarch64);		\
   RUNA64 (TESTFN, __memset_scalar);		\
   RUNSVE (TESTFN, __memset_aarch64_sve);	\
-  RUNSVE2 (TESTFN, __memset_sve_optimized);	\
   RUNMOPS (TESTFN, __memset_aarch64_mops);	\
   RUNA32 (TESTFN, __memset_arm);		\
   printf ("\n");
+  // Note: move this above the printf statement to register
+  // RUNSVE2 (TESTFN, __memset_sve_optimized);
 
 typedef struct { uint32_t offset : 20, len : 12; } memset_test_t;
 static memset_test_t test_arr[NUM_TESTS];
@@ -122,6 +124,16 @@ init_memset (size_t max_size)
   return total;
 }
 
+/*
+  For all benchmarks, the report is:
+    bytes/ns = total requested bytes ÷ elapsed nanoseconds
+
+  Higher is better, so 1 byte/ns equals decimal 1 GB/s.
+
+  memset 32K: 33.55 means that this impl was asked to write an average of 33.55
+  bytes per nanosecond
+*/
+
 static void inline __attribute ((always_inline))
 memset_random (const char *name, void *(*set)(void *, int, size_t))
 {
@@ -176,9 +188,11 @@ memset_medium (const char *name, void *(*set)(void *, int, size_t))
 
   for (uint64_t size = 8; size <= 512; size *= 2)
     {
-      uint64_t t = clock_get_ns ();
-      for (int i = 0; i < ITERS_MEDIUM; i++)
-	set (a, 0, size);
+      uint64_t t = clock_get_ns ();                   /* Start timer*/
+      for (int i = 0; i < ITERS_MEDIUM; i++) {        /* Call selected implementation ITERS_MEDIUM times */
+        /* Because a is an array of bytes */
+        set (a, 0, size);
+      }
       t = clock_get_ns () - t;
       memset_size = size * ITERS_MEDIUM;
       total_size += memset_size;
