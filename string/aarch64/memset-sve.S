@@ -27,7 +27,7 @@
 #define dstend2 x5
 
 ENTRY (__memset_aarch64_sve)
-	dup	v0.16B, valw
+	dup	v0.16B, valw				/* How was the vector size deteremined? */
 	cmp	count, 16
 	b.lo	L(set_16)
 

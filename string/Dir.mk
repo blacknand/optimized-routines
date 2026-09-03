@@ -12,8 +12,13 @@ all-string bench-string check-string install-string clean-string:
 	@exit 1
 else
 
-string-lib-srcs := $(wildcard $(S)/$(ARCH)/*.[cS])
-string-lib-srcs += $(wildcard $(S)/$(ARCH)/experimental/*.[cS])
+# string-lib-srcs := $(wildcard $(S)/$(ARCH)/*.[cS])
+# string-lib-srcs += $(wildcard $(S)/$(ARCH)/experimental/*.[cS])
+string-lib-srcs := \
+  	$(S)/$(ARCH)/memset.S \
+  	$(S)/$(ARCH)/memset-scalar.S \
+  	$(S)/$(ARCH)/memset-sve.S \
+#   	$(S)/$(ARCH)/experimental/memset-sve-optimized.S
 string-test-srcs := $(wildcard $(S)/test/*.c)
 string-bench-srcs := $(wildcard $(S)/bench/*.c)
 

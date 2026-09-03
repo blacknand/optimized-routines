@@ -6,9 +6,17 @@ from pathlib import Path
 from shutil import get_terminal_size
 from statistics import fmean, median
 
+"""
+    + bench-memset-random are all randomly sized and aligned zero-fill memset operations
+    + the random results have the average timing and length for all memset calls
+    + 
+"""
+
 BENCHMARK = "bench-memset"
 RUN_COUNT = 5
+WORST_RESULT_COUNT = 5
 
+# TOD: Add flag to specify the benchmark family and then handle that appropriately
 
 def load_run(path):
     """
@@ -187,6 +195,7 @@ def summarize_benchmark_family(candidate_runs, baseline_runs):
     candidate_name = candidate_runs[0]["ifuncs"][0]
     baseline_name = baseline_runs[0]["ifuncs"][0]
     run_summaries = []
+    all_run_results = []
 
     # These summaries describe each individual run.  Each test receives equal
     # weight because its percentage is calculated before the run average.
@@ -202,12 +211,21 @@ def summarize_benchmark_family(candidate_runs, baseline_runs):
         ):
             # Percentage difference between corresponding individiaul tests 
             # across the same run for both the canddiate and the baseline
-            run_percentages.append(
-                percentage_difference(
-                    candidate_result["timings"][0],
-                    baseline_result["timings"][0],
-                    f"run {run_number}, test {test_number}",
-                )
+            percentage = percentage_difference(
+                candidate_result["timings"][0],
+                baseline_result["timings"][0],
+                f"run {run_number}, test {test_number}",
+            )
+            run_percentages.append(percentage)
+            all_run_results.append(
+                {
+                    "run": run_number,
+                    "test": test_number,
+                    "percentage": percentage,
+                    "length": candidate_result["length"],
+                    "alignment": candidate_result["alignment"],
+                    "char": candidate_result["char"],
+                }
             )
 
         if not run_percentages:
@@ -226,7 +244,7 @@ def summarize_benchmark_family(candidate_runs, baseline_runs):
     # reduce the five repeated candidate and baseline measurements to medians,
     # then calculate one candidate-versus-baseline percentage.
     result_count = len(candidate_runs[0]["results"])
-    test_percentages = []
+    test_results = []
 
     for test_index in range(result_count):
         # Median of timings for all timings at text_index
@@ -248,26 +266,53 @@ def summarize_benchmark_family(candidate_runs, baseline_runs):
             run["results"][test_index]["timings"][0]
             for run in baseline_runs
         )
-        test_percentages.append(
-            percentage_difference(
-                candidate_median,
-                baseline_median,
-                f"test {test_index + 1}",
-            )
+        percentage = percentage_difference(
+            candidate_median,
+            baseline_median,
+            f"test {test_index + 1}",
+        )
+        test_result = candidate_runs[0]["results"][test_index]
+        # Results across each run have the same metadata but may differ in the timings
+        # so for the meta data, just arbitrarily access at index [0]
+        test_results.append(
+            {
+                "test": test_index + 1,
+                "percentage": percentage,
+                "length": test_result["length"],
+                "alignment": test_result["alignment"],
+                "char": test_result["char"],
+            }
         )
 
-    if not test_percentages:
+    if not test_results:
         raise ValueError("benchmark family contains no test results")
 
+    test_percentages = [
+        result["percentage"]
+        for result in test_results
+    ]
     winning_test_count = sum(
         percentage < 0
         for percentage in test_percentages
     )
+    # Get 5 individual worst run results
+    worst_run_results = sorted(
+        all_run_results,
+        key=lambda result: result["percentage"],
+        reverse=True,
+    )[:WORST_RESULT_COUNT]
+    # Top 5 worst average test results
+    worst_test_results = sorted(
+        test_results,
+        key=lambda result: result["percentage"],
+        reverse=True,
+    )[:WORST_RESULT_COUNT]
 
     return {
         "candidate": candidate_name,
         "baseline": baseline_name,
         "runs": run_summaries,
+        "worst_run_results": worst_run_results,
         "family": {
             "test_count": len(test_percentages),
             "test_percentages": test_percentages,
@@ -278,6 +323,7 @@ def summarize_benchmark_family(candidate_runs, baseline_runs):
             ),
             "best_percentage": min(test_percentages),
             "worst_percentage": max(test_percentages),
+            "worst_test_results": worst_test_results,
         },
     }
 
@@ -378,6 +424,7 @@ def main():
         usage=(
             "%(prog)s --routine=<routine-directory> "
             "--baseline=<baseline-directory> [--graph]"
+            "--family=<memset-benchmark-family>"
         )
     )
     parser.add_argument(
@@ -397,9 +444,16 @@ def main():
         action="store_true",
         help="print a graph directly in the terminal",
     )
+    # parser.add_argument(
+    #     "--family",
+    #     required=True,
+    #     help="memset benchmark family",
+    #     type=Path,
+    # )
     arguments = parser.parse_args()
     baseline_directory = arguments.baseline
     candidate_directory = arguments.routine
+    # benchmark_family = arguments.family
 
     if not baseline_directory.is_dir():
         raise SystemExit(
@@ -410,6 +464,11 @@ def main():
         raise SystemExit(
             f"candidate directory does not exist: {candidate_directory}"
         )
+
+    # if not benchmark_family.is_dir():
+    #     raise SystemExit(
+    #         f"benchmark family directory does not exist: {benchmark_family}"
+    #     )
 
     """
     There exists two independent dimensions:
@@ -470,6 +529,37 @@ def main():
         f"  Worst test: {worst:+.2f}% "
         f"({percentage_description(worst)})"
     )
+
+    worst_test_results = family["worst_test_results"]
+    print(f"\nWorst {len(worst_test_results)} tests across all runs")
+    print(
+        f"  Ranked by percentage difference using median timings from "
+        f"{RUN_COUNT} runs."
+    )
+    for rank, result in enumerate(worst_test_results, start=1):
+        percentage = result["percentage"]
+        print(
+            f"  {rank}. Test {result['test']}: {percentage:+.2f}% "
+            f"({percentage_description(percentage)}); "
+            f"length={result['length']}, "
+            f"alignment={result['alignment']}, char={result['char']}"
+        )
+
+    worst_run_results = summary["worst_run_results"]
+    print(f"\nWorst {len(worst_run_results)} individual results across all runs")
+    print(
+        "  Ranked by percentage difference between matching candidate and "
+        "baseline results."
+    )
+    for rank, result in enumerate(worst_run_results, start=1):
+        percentage = result["percentage"]
+        print(
+            f"  {rank}. Run {result['run']}, test {result['test']}: "
+            f"{percentage:+.2f}% "
+            f"({percentage_description(percentage)}); "
+            f"length={result['length']}, "
+            f"alignment={result['alignment']}, char={result['char']}"
+        )
 
     if arguments.graph:
         print_terminal_graph(summary)
