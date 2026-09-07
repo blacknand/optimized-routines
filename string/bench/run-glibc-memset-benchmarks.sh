@@ -13,10 +13,9 @@ if [[ ! -f /work/gnu/src/glibc-build/Makefile ]]; then
   )
 fi
 
-# Copy memset-optimized-sve.S into glibc and update the headers + retain ENTRY/END (__memset_sve_optimized)
 # Note that this is a new memset implementation, it does not replace the existing memset implementations (sve, generic SIMD, zva, etc.)
-sve_source=/work/gnu/src/optimized-routines/string/aarch64/experimental/memset-sve-optimized.S
-sve_glibc=/work/gnu/src/glibc/sysdeps/aarch64/multiarch/memset_sve_optimized.S
+sve_source=/work/gnu/src/optimized-routines/string/aarch64/experimental/__memset_aarch64_sve2.S
+sve_glibc=/work/gnu/src/glibc/sysdeps/aarch64/multiarch/__memset_aarch64_sve2.S
 
 # Only update the glibc copy when its transformed contents have changed.  This
 # avoids forcing an otherwise unnecessary glibc rebuild on every script run.
@@ -28,15 +27,15 @@ if ! cmp -s \
 fi
 
 # Register the implementation with the build
-if ! grep -Fq 'memset_sve_optimized' /work/gnu/src/glibc/sysdeps/aarch64/multiarch/Makefile; then
+if ! grep -Fq '__memset_aarch64_sve2' /work/gnu/src/glibc/sysdeps/aarch64/multiarch/Makefile; then
   # Insert the text before the memset_sve_zva64 line
-  sed -i '/^[[:space:]]*memset_sve_zva64 \\/i\  memset_sve_optimized \\' /work/gnu/src/glibc/sysdeps/aarch64/multiarch/Makefile
+  sed -i '/^[[:space:]]*memset_sve_zva64 \\/i\  __memset_aarch64_sve2 \\' /work/gnu/src/glibc/sysdeps/aarch64/multiarch/Makefile
 fi
 
 # Test and benchmark registration
-if ! grep -Fq '__memset_sve_optimized' /work/gnu/src/glibc/sysdeps/aarch64/multiarch/ifunc-impl-list.c; then
+if ! grep -Fq '__memset_aarch64_sve2' /work/gnu/src/glibc/sysdeps/aarch64/multiarch/ifunc-impl-list.c; then
   # Insert the text before the __memset_sve_zva64 line
-  sed -i '/__memset_sve_zva64)/i\              IFUNC_IMPL_ADD (array, i, memset, sve2, __memset_sve_optimized)' /work/gnu/src/glibc/sysdeps/aarch64/multiarch/ifunc-impl-list.c
+  sed -i '/__memset_sve_zva64)/i\              IFUNC_IMPL_ADD (array, i, memset, sve2, __memset_aarch64_sve2)' /work/gnu/src/glibc/sysdeps/aarch64/multiarch/ifunc-impl-list.c
 fi
 
 # Skip irrelevant benchmarks: kunpeng and oryon
@@ -89,6 +88,10 @@ for arg in "$@"; do
   esac
 done
 
+# Run 5 times, then calculate the average
+# Repeat the whole process 5 times and pick the best
+# metrics from each group
+
 if ! $skip_glibc_build; then
   # Build glibc
   echo "> Building glibc..."
@@ -117,18 +120,19 @@ benchmarks=(
 
 routines=(
   # generic_memset
-  # __memset_sve_optimized
+  # __memset_aarch64_sve2 
   __memset_sve_zva64
   __memset_generic
 )
 
 if $skip_all_benchmarks; then
   routines=(
-    __memset_sve_optimized
+   __memset_aarch64_sve2 
   )
 fi
 
-results_root=/work/gnu/src/benchmark-results/memset-sve-optimized
+results_root=/work/gnu/src/benchmark-results/__memset_aarch64_sve2
+# TODO: This does not work
 results_dir="$results_root/$(LC_ALL=C date -u +%a-%d-%b-%M-%H-GMT)"
 mkdir -p "$results_root"
 mkdir "$results_dir"

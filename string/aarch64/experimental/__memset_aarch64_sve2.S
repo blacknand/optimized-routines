@@ -34,15 +34,14 @@ ENTRY (__memset_aarch64_sve2)
 	/* TODO: think about the correct load given the size of the vector + number of vectors
 	   for whatever core this is */
 
+	/* TODO: Investigate if there is a better way to branch? */
 	cbz count, null_count
 
 	dup v0.16B, valw		
 	add dstend, destin, count
+	/* TODO: Investigate how to check if the alignemnt is near 4096 with a count of < 16 */
 	cmp count, 16
 	b.lo L(set_16)
-
-	// cmp count, 16
-	// b.lo	L(set_16)
 
 /* 
 TODO: Implement DC ZVA blocks
