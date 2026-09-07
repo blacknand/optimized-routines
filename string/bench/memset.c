@@ -21,6 +21,8 @@
 #define MIN_SIZE 32768
 #define MAX_SIZE (1024 * 1024)
 
+static int alignment = 0;
+
 /* Each block is page is exactly 4096 bytes */
 static uint8_t a[MAX_SIZE + 4096] __attribute__((__aligned__(4096)));
 
@@ -163,7 +165,7 @@ memset_random (const char *name, void *(*set)(void *, int, size_t))
 static void inline __attribute ((always_inline))
 memset_medium (const char *name, void *(*set)(void *, int, size_t))
 {
-  printf ("%22s ", name);
+  printf ("%22s \n", name);
 
   /* Sizes 8, 16, 32, 64, 128, 256, 512*/
   for (int size = 8; size <= 512; size *= 2)
@@ -171,7 +173,7 @@ memset_medium (const char *name, void *(*set)(void *, int, size_t))
       uint64_t t = clock_get_ns ();                   /* Start timer*/
       for (int i = 0; i < ITERS_MEDIUM; i++) {        /* Call selected implementation ITERS_MEDIUM times */
         /* Because a is an array of bytes */
-        set (a, 0, size);
+        set (a + alignment, 0, size);
       }
       t = clock_get_ns () - t;
       /* (Size * iterations for medium) / time elapsed, resulting in
@@ -184,7 +186,7 @@ memset_medium (const char *name, void *(*set)(void *, int, size_t))
       double total_requested_bytes = (double) size * ITERS_MEDIUM;
       double bytes_per_ns = total_requested_bytes / t;
       double ns_per_call = (double) t / ITERS_MEDIUM;
-      printf ("%dB: %5.2f bytes/ns (%5.3f ns/call) ", size,
+      printf ("%dB: %5.2f bytes/ns (%5.3f ns/call) \n", size,
               bytes_per_ns, ns_per_call);
     }
   printf ("\n");
@@ -215,7 +217,10 @@ int main (void)
   printf("Only medium rn\n");
 
   // DOTEST ("Random memset (bytes/ns):\n", memset_random);
-  DOTEST ("Medium memset (bytes/ns + ns/call):\n", memset_medium);
+  /* how tf do i pass in another argument*/
+  DOTEST ("Medium memset (bytes/ns + ns/call), alignment=0:\n", memset_medium);
+  alignment=4095;
+  DOTEST ("Medium memset (bytes/ns + ns/call), alignment=4095:\n", memset_medium);
   // DOTEST ("Large memset (bytes/ns):\n", memset_large);
   return 0;
 }
