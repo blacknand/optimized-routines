@@ -126,7 +126,7 @@ benchmarks=(
 
 routines=(
   # generic_memset
-  __memset_aarch64_sve2 
+  # __memset_aarch64_sve2 
   __memset_sve_zva64
   __memset_generic
 )
