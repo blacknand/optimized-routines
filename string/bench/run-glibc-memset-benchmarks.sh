@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-# TODO: Register __memset_aarch64_sve from memset-sve.S into glibc infra
-
 # If any command fails abort the entire script
 set -euo pipefail
 # If no Makefile exists in the glibc build, configure glibc again
@@ -106,7 +104,15 @@ if $run_tests; then
   echo "> Running glibc tests..."
   make -C /work/gnu/src/glibc-build \
   test t=string/test-memset \
-  -j"$(nproc)"
+    -j"$(nproc)" 2>&1 |
+  while IFS= read -r line; do
+    printf '%s\n' "$line"
+    if [[ $line == *"FAIL:"* ]]; then
+        printf '\033[1;31m> Detected a FAIL: line in the glibc test output\033[0m\n' \
+          >&2
+        exit 1
+    fi
+  done
 fi
 
 # Run each benchmark individually five times and preserve every result.
@@ -120,7 +126,7 @@ benchmarks=(
 
 routines=(
   # generic_memset
-  # __memset_aarch64_sve2 
+  __memset_aarch64_sve2 
   __memset_sve_zva64
   __memset_generic
 )
@@ -131,59 +137,65 @@ if $skip_all_benchmarks; then
   )
 fi
 
-results_root=/work/gnu/src/benchmark-results/__memset_aarch64_sve2
-# TODO: This does not work
-results_dir="$results_root/$(LC_ALL=C date -u +%a-%d-%b-%M-%H-GMT)"
-mkdir -p "$results_root"
+# EC2 instance
+results_root=/work/gnu/src/memset-results
+# memset-results/\<date>-\<month>-\<year>/\<nanosecond>-\<second>-\<minute>-\<hour>
+results_timestamp="$(TZ=Europe/London date +'%d-%m-%Y/%N-%S-%M-%H')"
+results_dir="$results_root/$results_timestamp"
+mkdir -p "${results_dir%/*}"
 mkdir "$results_dir"
 
 # Build all selected glibc benchmark binaries once.  The runs below execute
 # those binaries directly through glibc's generated runtime wrapper.
 if ! $skip_glibc_benchmark_build; then 
-  echo "> Building glibc benchmarks..."
+  printf '\033[1;36m> Building glibc benchmarks...\033[0m\n'
   make -C /work/gnu/src/glibc-build \
     bench-build \
     BENCHSET=string-benchset \
     "string-benchset=${benchmarks[*]}" \
     -j"$(nproc)"
 else 
-  echo "> Skipping glibc benchmark build..."
+  printf '\033[1;36m> Skipping glibc benchmark build...\033[0m\n'
 fi
 
-for benchmark in "${benchmarks[@]}"; do
-  benchmark_binary="/work/gnu/src/glibc-build/benchtests/bench-$benchmark"
+for bench_run in {1..5}; do
+  printf '\033[1;32m[%s/5] Running overall benchmark suite\033[0m\n' \
+    "$bench_run"
+  for benchmark in "${benchmarks[@]}"; do
+    benchmark_binary="/work/gnu/src/glibc-build/benchtests/bench-$benchmark"
 
-  # Run each routines benchmark 5 times, storing the results 1 by 1
-  for run in {1..5}; do
-    for routine in "${routines[@]}"; do
-      routine_dir="$results_dir/$routine"
-      mkdir -p "$routine_dir"
-      echo "[$run/5] Running $benchmark: $routine"
-      GLIBC_BENCH_IMPL="$routine" \
-        taskset -c 3 \
-        /work/gnu/src/glibc-build/testrun.sh \
-        "$benchmark_binary" \
-        > "$routine_dir/bench-$benchmark.run-$run.out"
+    # Run each routines benchmark 5 times, storing the results 1 by 1
+    for run in {1..5}; do
+      for routine in "${routines[@]}"; do
+        routine_dir="$results_dir/bench_run-$bench_run/$routine"
+        mkdir -p "$routine_dir"
+        echo "[$run/5] Running $benchmark: $routine"
+        GLIBC_BENCH_IMPL="$routine" \
+          taskset -c 3 \
+          /work/gnu/src/glibc-build/testrun.sh \
+          "$benchmark_binary" \
+          > "$routine_dir/bench-$benchmark.run-$run.out"
+      done
     done
   done
 done
 
-echo "> Benchmark results saved in $results_dir"
+printf '\033[1;36m> Benchmark results saved in %s\033[0m\n' "$results_dir"
 
 # Build the AoR benchmark
 if $run_aor_benchmark; then
-  echo "> Building AoR benchmarks for memset..."
+  printf '\033[1;36m> Building AoR benchmarks for memset...\033[0m\n'
   make -C /work/gnu/src/optimized-routines \
     ARCH=aarch64 \
     CFLAGS='-O2 -march=armv9-a+sve2' \
     build/bin/bench/memset
 
-  echo "Running AoR benchmarks..."
+  printf '\033[1;36m> Running AoR benchmarks...\033[0m\n'
   # Run memset benchmarks 5 times
-  echo "Running AoR benchmark "
   taskset -c 3 \
     /work/gnu/src/optimized-routines/build/bin/bench/memset \
     > "$results_dir/aor-bench-memset.run-$run.out"
 
-  echo "> AoR benchmark results stored in $results_dir"
+  printf '\033[1;36m> AoR benchmark results stored in %s\033[0m\n' \
+    "$results_dir"
 fi
