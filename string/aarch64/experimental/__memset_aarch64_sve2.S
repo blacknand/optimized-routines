@@ -20,17 +20,11 @@ Assumptions:
 .arch armv9-a+sve2
 
 ENTRY (__memset_aarch64_sve2)
-	/* TODO: think about the correct load given the size of the vector + number of vectors
-	   for whatever core this is */
-
-	/* TODO: Investigate if there is a better way to branch? */
 	cbz count, L(null_count)
 
-	/* Note: V2 cores have 4 SIMD pipelines, so why does this duplicate store not
-		use 4 32-bit fields per vector instead? */
+	/* 16 lanes, each 8 bits wide */
 	dup v0.16B, valw		
 	add destend, destin, count
-	/* TODO: Investigate how to check if the alignemnt is near 4096 with a count of < 16 */
 	cmp count, 16
 	b.lo	L(set_16)
 
@@ -71,10 +65,10 @@ L(set_128):
 	bic	dest, destin, 15
 	cmp	count, 128
 	b.hi	L(set_long)
-	stp	q0, q0, [destin]					// [destin, destin + 32)
-	stp	q0, q0, [destin, 32]				// [destin, destin + 64]
-	stp	q0, q0, [destend, -64]			// [destend - 64, destend - 32)
-	stp	q0, q0, [destend, -32]			// [destend - 32, destend)
+	stp	q0, q0, [destin]					
+	stp	q0, q0, [destin, 32]				
+	stp	q0, q0, [destend, -64]			
+	stp	q0, q0, [destend, -32]			
 	ret
 
 L(set_long):

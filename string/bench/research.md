@@ -2,64 +2,106 @@
 + Modify `glibc/benchtests/bench-memset.c -> test_main()` to modify the memset parameters for glibc
 + Modify `optimized-routines/string/bench/memset.c -> memset_medium()` to modify the medium benchmark family
 
-## `alignment=0`
-```bash
-Medium memset (bytes/ns):
-                memset 8B:  7.46 16B: 14.91 32B: 14.07 64B: 14.62 128B: 55.74 256B: 100.71 512B: 118.86 
-      __memset_aarch64 8B:  7.45 16B: 17.88 32B: 14.91 64B: 29.82 128B: 59.63 256B: 102.14 512B: 129.39 
-       __memset_scalar 8B:  7.46 16B: 12.84 32B: 14.91 64B: 29.81 128B: 54.36 256B: 102.18 512B: 129.52 
-  __memset_aarch64_sve 8B: 11.18 16B: 17.88 32B: 14.91 64B: 29.82 128B: 59.64 256B: 101.88 512B: 128.75 
+## Benchmark results
+#### `candidate=__memset_aarch64_sve2`, `baseline=__memset_sve_zva64`
 ```
-
-## `alignment=4095`
-```bash
-Medium memset (bytes/ns):
-                memset 8B:  2.03 16B:  0.97 32B:  3.41 64B:  6.78 128B: 24.86 256B: 44.48 512B: 78.86 
-      __memset_aarch64 8B:  1.09 16B:  0.96 32B:  3.91 64B: 14.24 128B: 27.46 256B: 34.43 512B: 67.70 
-       __memset_scalar 8B:  1.02 16B:  1.00 32B:  3.66 64B: 13.47 128B: 25.71 256B: 35.24 512B: 67.76 
-  __memset_aarch64_sve 8B:  1.98 16B:  0.94 32B:  4.33 64B: 14.04 128B: 27.42 256B: 45.61 512B: 79.50 
-```
-
-## glibc variable alignment
-```bash
 Comparison
-  Candidate: __memset_sve_zva64
-  Baseline:  __memset_generic
+  Candidate: __memset_aarch64_sve2
+  Baseline:  __memset_sve_zva64
   Negative percentages mean the candidate is faster.
   Positive percentages mean the candidate is slower.
 
-Individual runs
-  Mean of the per-test differences in each matching run pair.
-  Run 1: -7.93% (candidate faster)
-  Run 2: -8.02% (candidate faster)
-  Run 3: -9.50% (candidate faster)
-  Run 4: -8.05% (candidate faster)
-  Run 5: -9.80% (candidate faster)
+Benchmark suite: bench_run-1
+  Individual runs
+    Mean of the per-test differences in each matching run pair.
+    Run 1: +1.47% (candidate slower)
+    Run 2: -0.33% (candidate faster)
+    Run 3: +0.37% (candidate slower)
+    Run 4: -2.93% (candidate faster)
+    Run 5: -1.14% (candidate faster)
+  Overall benchmark family
+    Each test uses the median timing from 5 runs; 1444 tests total.
+    Average difference: -0.29% (candidate faster)
+    Winning tests: 603/1444 (41.76%)
+    Best test: -68.92% (candidate faster)
+    Worst test: +23.96% (candidate slower)
 
-Overall benchmark family
-  Each test uses the median timing from 5 runs; 10 tests total.
-  Average difference: -8.09% (candidate faster)
-  Winning tests: 8/10 (80.00%)
-  Best test: -40.38% (candidate faster)
-  Worst test: +120.15% (candidate slower)
+Benchmark suite: bench_run-2
+  Individual runs
+    Mean of the per-test differences in each matching run pair.
+    Run 1: -1.00% (candidate faster)
+    Run 2: -1.53% (candidate faster)
+    Run 3: -1.00% (candidate faster)
+    Run 4: -0.38% (candidate faster)
+    Run 5: +1.64% (candidate slower)
+  Overall benchmark family
+    Each test uses the median timing from 5 runs; 1444 tests total.
+    Average difference: -0.82% (candidate faster)
+    Winning tests: 681/1444 (47.16%)
+    Best test: -70.58% (candidate faster)
+    Worst test: +24.07% (candidate slower)
 
-Worst 5 tests across all runs
+Benchmark suite: bench_run-3
+  Individual runs
+    Mean of the per-test differences in each matching run pair.
+    Run 1: -0.90% (candidate faster)
+    Run 2: -3.23% (candidate faster)
+    Run 3: -1.83% (candidate faster)
+    Run 4: -0.77% (candidate faster)
+    Run 5: -1.18% (candidate faster)
+  Overall benchmark family
+    Each test uses the median timing from 5 runs; 1444 tests total.
+    Average difference: -1.53% (candidate faster)
+    Winning tests: 745/1444 (51.59%)
+    Best test: -69.00% (candidate faster)
+    Worst test: +23.02% (candidate slower)
+
+Benchmark suite: bench_run-4
+  Individual runs
+    Mean of the per-test differences in each matching run pair.
+    Run 1: -3.11% (candidate faster)
+    Run 2: -0.57% (candidate faster)
+    Run 3: -0.16% (candidate faster)
+    Run 4: -0.53% (candidate faster)
+    Run 5: -1.72% (candidate faster)
+  Overall benchmark family
+    Each test uses the median timing from 5 runs; 1444 tests total.
+    Average difference: -0.95% (candidate faster)
+    Winning tests: 747/1444 (51.73%)
+    Best test: -70.12% (candidate faster)
+    Worst test: +34.39% (candidate slower)
+
+Benchmark suite: bench_run-5
+  Individual runs
+    Mean of the per-test differences in each matching run pair.
+    Run 1: -1.21% (candidate faster)
+    Run 2: -1.40% (candidate faster)
+    Run 3: -0.68% (candidate faster)
+    Run 4: +0.65% (candidate slower)
+    Run 5: -1.24% (candidate faster)
+  Overall benchmark family
+    Each test uses the median timing from 5 runs; 1444 tests total.
+    Average difference: -1.21% (candidate faster)
+    Winning tests: 719/1444 (49.79%)
+    Best test: -70.50% (candidate faster)
+    Worst test: +26.00% (candidate slower)
+
+Worst 5 tests across all benchmark suites
   Ranked by percentage difference using median timings from 5 runs.
-  1. Test 7: +120.15% (candidate slower); length=3, alignment=4095, char=0
-  2. Test 6: +116.46% (candidate slower); length=2, alignment=4095, char=0
-  3. Test 1: -37.25% (candidate faster); length=2, alignment=0, char=0
-  4. Test 10: -39.95% (candidate faster); length=3, alignment=2001, char=0
-  5. Test 5: -39.96% (candidate faster); length=1, alignment=4095, char=0
+  1. bench_run-4, test 664: +34.39% (candidate slower); length=1024, alignment=3, char=0
+  2. bench_run-5, test 365: +26.00% (candidate slower); length=4, alignment=4, char=0
+  3. bench_run-5, test 386: +25.08% (candidate slower); length=9, alignment=0, char=0
+  4. bench_run-5, test 48: +24.63% (candidate slower); length=8, alignment=4088, char=-65
+  5. bench_run-2, test 689: +24.07% (candidate slower); length=1, alignment=4095, char=65
 
-Worst 5 individual results across all runs
+Worst 5 individual results across all benchmark suites
   Ranked by percentage difference between matching candidate and baseline results.
-  1. Run 5, test 7: +134.20% (candidate slower); length=3, alignment=4095, char=0
-  2. Run 3, test 7: +130.08% (candidate slower); length=3, alignment=4095, char=0
-  3. Run 1, test 7: +120.18% (candidate slower); length=3, alignment=4095, char=0
-  4. Run 2, test 7: +120.14% (candidate slower); length=3, alignment=4095, char=0
-  5. Run 4, test 7: +120.11% (candidate slower); length=3, alignment=4095, char=0
+  1. bench_run-5, run 4, test 365: +1932.64% (candidate slower); length=4, alignment=4, char=0
+  2. bench_run-4, run 3, test 122: +805.54% (candidate slower); length=27, alignment=4069, char=-65
+  3. bench_run-2, run 2, test 969: +305.47% (candidate slower); length=576, alignment=576, char=65
+  4. bench_run-5, run 1, test 1: +143.41% (candidate slower); length=1, alignment=0, char=-65
+  5. bench_run-1, run 3, test 5: +128.25% (candidate slower); length=16, alignment=0, char=-65
 ```
-From the above, it is clear that when memset is called with `alignment=4095` it is much slower. This applies to all memset routines, **but there is something else which I cannot remember. Investigate + research further.** 
 
 ## AoR `memset` medium benchmark metrics
 + Bytes per nanosecond: `(bytes/call * calls) / nanoseconds` where `size = bytes/call`
