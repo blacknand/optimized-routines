@@ -126,7 +126,7 @@ benchmarks=(
 
 routines=(
   # generic_memset
-  # __memset_aarch64_sve2 
+  __memset_aarch64_sve2 
   __memset_sve_zva64
   __memset_generic
 )
@@ -174,7 +174,7 @@ for bench_run in {1..5}; do
           taskset -c 3 \
           /work/gnu/src/glibc-build/testrun.sh \
           "$benchmark_binary" \
-          > "$routine_dir/bench-$benchmark.run-$run.out"
+          > "$routine_dir/run-$run.out"
       done
     done
   done
