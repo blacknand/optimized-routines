@@ -2,6 +2,7 @@
 
 import argparse
 import json
+from io import StringIO
 from pathlib import Path
 from statistics import fmean, median
 
@@ -511,6 +512,7 @@ def percentage_description(percentage):
         return "candidate slower"
     return "same timing"
 
+
 def main():
     parser = argparse.ArgumentParser(
         usage=(
@@ -568,19 +570,25 @@ def main():
         baseline.name,
     )
 
-    print("Comparison")
-    print(f"  Candidate: {summary['candidate']}")
-    print(f"  Baseline:  {summary['baseline']}")
-    print("  Negative percentages mean the candidate is faster.")
-    print("  Positive percentages mean the candidate is slower.")
+    report = StringIO()
+
+    def output(*args, **kwargs):
+        print(*args, **kwargs)
+        print(*args, file=report, **kwargs)
+
+    output("Comparison")
+    output(f"  Candidate: {summary['candidate']}")
+    output(f"  Baseline:  {summary['baseline']}")
+    output("  Negative percentages mean the candidate is faster.")
+    output("  Positive percentages mean the candidate is slower.")
 
     for bench_run_name, bench_summary in summary["bench_runs"].items():
-        print(f"\nBenchmark suite: {bench_run_name}")
-        print("  Individual runs")
-        print("    Mean of the per-test differences in each matching run pair.")
+        output(f"\nBenchmark suite: {bench_run_name}")
+        output("  Individual runs")
+        output("    Mean of the per-test differences in each matching run pair.")
         for run_summary in bench_summary["runs"]:
             percentage = run_summary["percentage"]
-            print(
+            output(
                 f"    Run {run_summary['run']}: {percentage:+.2f}% "
                 f"({percentage_description(percentage)})"
             )
@@ -589,40 +597,40 @@ def main():
         average = family["average_percentage"]
         best = family["best_percentage"]
         worst = family["worst_percentage"]
-        print("  Overall benchmark family")
-        print(
+        output("  Overall benchmark family")
+        output(
             f"    Each test uses the median timing from {RUN_COUNT} runs; "
             f"{family['test_count']} tests total."
         )
-        print(
+        output(
             f"    Average difference: {average:+.2f}% "
             f"({percentage_description(average)})"
         )
-        print(
+        output(
             f"    Winning tests: {family['winning_test_count']}/"
             f"{family['test_count']} "
             f"({family['winning_tests_percentage']:.2f}%)"
         )
-        print(
+        output(
             f"    Best test: {best:+.2f}% "
             f"({percentage_description(best)})"
         )
-        print(
+        output(
             f"    Worst test: {worst:+.2f}% "
             f"({percentage_description(worst)})"
         )
 
     worst_test_results = summary["worst_test_results"]
-    print(
+    output(
         f"\nWorst {len(worst_test_results)} tests across all benchmark suites"
     )
-    print(
+    output(
         f"  Ranked by percentage difference using median timings from "
         f"{RUN_COUNT} runs."
     )
     for rank, result in enumerate(worst_test_results, start=1):
         percentage = result["percentage"]
-        print(
+        output(
             f"  {rank}. {result['bench_run']}, test {result['test']}: "
             f"{percentage:+.2f}% "
             f"({percentage_description(percentage)}); "
@@ -631,23 +639,26 @@ def main():
         )
 
     worst_run_results = summary["worst_run_results"]
-    print(
+    output(
         f"\nWorst {len(worst_run_results)} individual results across all "
         "benchmark suites"
     )
-    print(
+    output(
         "  Ranked by percentage difference between matching candidate and "
         "baseline results."
     )
     for rank, result in enumerate(worst_run_results, start=1):
         percentage = result["percentage"]
-        print(
+        output(
             f"  {rank}. {result['bench_run']}, run {result['run']}, "
             f"test {result['test']}: {percentage:+.2f}% "
             f"({percentage_description(percentage)}); "
             f"length={result['length']}, "
             f"alignment={result['alignment']}, char={result['char']}"
         )
+
+    results_path = run_group_directory / "results.txt"
+    results_path.write_text(report.getvalue(), encoding="utf-8")
 
 if __name__ == "__main__":
     main()

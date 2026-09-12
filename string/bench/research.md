@@ -126,6 +126,8 @@ SVE2 will **not automatically** make memset faster. Speed will depend on:
 
 + Zero-fills dominate `memset` calls so optimising for `dc zva` would be the best case/idea.
 
++ Branching if `count == 0` immediately has improvement of 0.98%
+
 ### Evgeny's idea
 Yes. With SVE, two complementary predicates can ensure that neither individual store has active elements on both sides of the page boundary.
 

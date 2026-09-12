@@ -194,7 +194,7 @@ if $run_aor_benchmark; then
   # Run memset benchmarks 5 times
   taskset -c 3 \
     /work/gnu/src/optimized-routines/build/bin/bench/memset \
-    > "$results_dir/aor-bench-memset.run-$run.out"
+    > "$results_dir/aor-bench-memset.out"
 
   printf '\033[1;36m> AoR benchmark results stored in %s\033[0m\n' \
     "$results_dir"

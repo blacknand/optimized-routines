@@ -55,7 +55,7 @@ int __strncmp_aarch64_sve (const char *, const char *, size_t);
 # endif
 # if __ARM_FEATURE_SVE2
 /* ^^ */
-void *__memset_sve_optimized (void *, int, size_t);
+void *__memset_aarch64_sve2 (void *, int, size_t);      /* experimental impl */
 char *__strchr_aarch64_sve2 (const char *, int);
 char *__strchrnul_aarch64_sve2 (const char *, int );
 # endif

@@ -4,6 +4,8 @@ Assumptions:
 	+ AArch64
 	+ SVE/SVE2
 	+ NEON
+	+ ZVA size is 64
+	+ Unaligned access
  */
 
 #include "asmdefs.h"
@@ -19,7 +21,27 @@ Assumptions:
 
 .arch armv9-a+sve2
 
+/*
+Investigation TODOs:
+	+ cache-line
+	+ how to check if near a boundary of any kind (page, cache-line, anything else)
+	+ where to handle count == 0
+Questions:
+	+ More loop unrolling, or has Wilko done all of it?
+	+ Why is this specifically SVE2? There must be some SVE2 instructions I can use that
+		will optimise? (reduce the number of lines)
+Notes:
+	+ VL = 128, store throughput is one of the most important factors
+	+ Size distribution is a huge factor?
+	+ alignment + cache state (if that includes cache-line?)
+	+ Memory bandwidth
+	+ optimise for DC ZVA, Wilko has most likely already exploited this
+	+ Perf: Wilko was talking about the total number of instructions used when executing a
+		routine, including the instructions for setting the system up, etc.
+*/
+
 ENTRY (__memset_aarch64_sve2)
+	/* TODO: Measure just an immediate cbz (only instruction) against ZVA64 version */
 	cbz count, L(null_count)
 
 	/* 16 lanes, each 8 bits wide */
@@ -43,21 +65,27 @@ ENTRY (__memset_aarch64_sve2)
 
 .p2align 4
 L(set_16):
-	bic dest, destin, 15				/* Align down destin to a 16-byte address */
-	add dest, dest, 16
-	cmp dest, destend
-	/* dest is the split point: if the requested region crosses the next 16-byte boundary,
-		dest is that boundary. If it does not cross, then dest is simply the end. */
-	csel dest, dest, destend, lo		
+	// cbz count, L(null_count)
 
-	/* Generate the first predicate from the original source up to the split, and then
-		generate the second predicate from the split until the destination. */
-	whilelo p0.b, destin, dest
-	whilelo p1.b, dest, destend
+	// bic dest, destin, 15				/* Align down destin to a 16-byte address */
+	// add dest, dest, 16
+	// cmp dest, destend
+	// /* dest is the split point: if the requested region crosses the next 16-byte boundary,
+		// dest is that boundary. If it does not cross, then dest is simply the end. */
+	// csel dest, dest, destend, lo		
 
-	/* Use same vector registers, different predicates and different base addresses */
-	st1b	z0.b, p0, [destin]		
-	st1b	z0.b, p1, [dest]		
+	// /* Generate the first predicate from the original source up to the split, and then
+		// generate the second predicate from the split until the destination. */
+	// whilelo p0.b, destin, dest
+	// whilelo p1.b, dest, destend
+
+	// /* Use same vector registers, different predicates and different base addresses */
+	// st1b	z0.b, p0, [destin]		
+	// st1b	z0.b, p1, [dest]		
+	// ret
+
+	whilelo p0.b, xzr, count				/* xzr is a zero-register, any data written to it is discarded */
+	st1b	z0.b, p0, [destin]				/* Predicated contiguous store? */
 	ret
 
 .p2align 4

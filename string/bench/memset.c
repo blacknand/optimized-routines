@@ -21,9 +21,6 @@
 #define MIN_SIZE 32768
 #define MAX_SIZE (1024 * 1024)
 
-static int alignment = 0;
-
-/* Each block is page is exactly 4096 bytes */
 static uint8_t a[MAX_SIZE + 4096] __attribute__((__aligned__(4096)));
 
 #define DOTEST(STR,TESTFN)			\
@@ -32,11 +29,10 @@ static uint8_t a[MAX_SIZE + 4096] __attribute__((__aligned__(4096)));
   RUNA64 (TESTFN, __memset_aarch64);		\
   RUNA64 (TESTFN, __memset_scalar);		\
   RUNSVE (TESTFN, __memset_aarch64_sve);	\
+  RUNSVE2 (TESTFN, __memset_aarch64_sve2);	\
   RUNMOPS (TESTFN, __memset_aarch64_mops);	\
   RUNA32 (TESTFN, __memset_arm);		\
   printf ("\n");
-  // Note: move this above the printf statement to register
-  // RUNSVE2 (TESTFN, __memset_sve_optimized);	  
 
 typedef struct { uint32_t offset : 20, len : 12; } memset_test_t;
 static memset_test_t test_arr[NUM_TESTS];
@@ -125,16 +121,6 @@ init_memset (size_t max_size)
   return total;
 }
 
-/*
-  For all benchmarks, the report is:
-    bytes/ns = total requested bytes ÷ elapsed nanoseconds
-  
-  Higher is better, so 1 byte/ns equals decimal 1 GB/s.
-
-  memset 32K: 33.55 means that this impl was asked to write an average of 33.55 
-  bytes per nanosecond
-*/
-
 static void inline __attribute ((always_inline))
 memset_random (const char *name, void *(*set)(void *, int, size_t))
 {
@@ -165,29 +151,15 @@ memset_random (const char *name, void *(*set)(void *, int, size_t))
 static void inline __attribute ((always_inline))
 memset_medium (const char *name, void *(*set)(void *, int, size_t))
 {
-  printf ("%22s \n", name);
+  printf ("%22s ", name);
 
-  /* Sizes 8, 16, 32, 64, 128, 256, 512*/
   for (int size = 8; size <= 512; size *= 2)
     {
-      uint64_t t = clock_get_ns ();                   /* Start timer*/
-      for (int i = 0; i < ITERS_MEDIUM; i++) {        /* Call selected implementation ITERS_MEDIUM times */
-        /* Because a is an array of bytes */
-        set (a + alignment, 0, size);
-      }
+      uint64_t t = clock_get_ns ();
+      for (int i = 0; i < ITERS_MEDIUM; i++)
+	set (a, 0, size);
       t = clock_get_ns () - t;
-      /* (Size * iterations for medium) / time elapsed, resulting in
-          bytes per nanosecond. It can also be expressed as nanoseconds per
-          call: let memset 8B: 7.46 then = 8 / 7.46 = 1.07 ns/call.
-          
-          Another example: __memset_aarch64_sve 8B: 11.08 means roughly
-          8 / 11.08 = 0.72 ns/call 
-          */
-      double total_requested_bytes = (double) size * ITERS_MEDIUM;
-      double bytes_per_ns = total_requested_bytes / t;
-      double ns_per_call = (double) t / ITERS_MEDIUM;
-      printf ("%dB: %5.2f bytes/ns (%5.3f ns/call) \n", size,
-              bytes_per_ns, ns_per_call);
+      printf ("%dB: %5.2f ", size, (double)size * ITERS_MEDIUM / t);
     }
   printf ("\n");
 }
@@ -214,13 +186,8 @@ int main (void)
 
   memset (a, 1, sizeof (a));
 
-  printf("Only medium rn\n");
-
-  // DOTEST ("Random memset (bytes/ns):\n", memset_random);
-  /* how tf do i pass in another argument*/
-  DOTEST ("Medium memset (bytes/ns + ns/call), alignment=0:\n", memset_medium);
-  alignment=4095;
-  DOTEST ("Medium memset (bytes/ns + ns/call), alignment=4095:\n", memset_medium);
-  // DOTEST ("Large memset (bytes/ns):\n", memset_large);
+  DOTEST ("Random memset (bytes/ns):\n", memset_random);
+  DOTEST ("Medium memset (bytes/ns):\n", memset_medium);
+  DOTEST ("Large memset (bytes/ns):\n", memset_large);
   return 0;
 }
