@@ -8,7 +8,7 @@ from statistics import fmean, median
 
 BENCHMARK = "bench-memset"
 RUN_COUNT = 5
-WORST_RESULT_COUNT = 5
+WORST_RESULT_COUNT = 10
 RUNS = {}
 
 def load_run(path):
