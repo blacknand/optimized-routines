@@ -43,21 +43,13 @@ ENTRY (__memset_aarch64_sve2)
 
 .p2align 4
 L(set_16):
-	bic dest, destin, 15				/* Align down destin to a 16-byte address */
-	add dest, dest, 16
-	cmp dest, destend
-	/* dest is the split point: if the requested region crosses the next 16-byte boundary,
-		dest is that boundary. If it does not cross, then dest is simply the end. */
-	csel dest, dest, destend, lo		
-
-	/* Generate the first predicate from the original source up to the split, and then
-		generate the second predicate from the split until the destination. */
+	bic	dest, destend, 0xf
+	cmp	dest, destin
+	csel	dest, dest, destin, hs
 	whilelo p0.b, destin, dest
 	whilelo p1.b, dest, destend
-
-	/* Use same vector registers, different predicates and different base addresses */
-	st1b	z0.b, p0, [destin]		
-	st1b	z0.b, p1, [dest]		
+	st1b	z0.b, p0, [destin]
+	st1b	z0.b, p1, [dest] 
 	ret
 
 .p2align 4
