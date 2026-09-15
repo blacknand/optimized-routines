@@ -28,7 +28,7 @@
 ENTRY (__memset_aarch64_sve)
 	cbz count, L(null_count)
 
-	/* Duplicate low byte of valw across the vector */
+	/* Duplicate low byte of valw across the vector. */
 	dup	v0.16B, valw
 	add	dstend, dstin, count
 	cmp	count, 16
@@ -37,7 +37,7 @@ ENTRY (__memset_aarch64_sve)
 	cmp	count, 64
 	b.hi	L(set_128)
 
-	/* Set 16..64 bytes.  */
+	/* Set 16..64 bytes. */
 	mov	off, 48
 	and	off, off, count, lsr 1
 	sub	dstend2, dstend, off
@@ -49,9 +49,18 @@ ENTRY (__memset_aarch64_sve)
 
 .p2align 4
 L(set_16):
+	/* Align dst down to a 16-byte address. */
 	bic	dst, dstend, 0xf
 	cmp	dst, dstin
-	csel	dst, dst, dstin, hs
+	/* dst = max(dstin, align_down(dstend, 16)),
+	   dst is then used to work out the split point. */
+	csel dst, dst, dstin, hs				
+
+	/* Using dst, generate two predicates from dstin to dst,
+	   and then dst to dstend. If there is a page boundary, this
+	   prevents a single write from crossing the page boundary.
+	   
+	   One or both of the predicates could be used to perform a write. */
 	whilelo p0.b, dstin, dst
 	whilelo p1.b, dst, dstend
 	st1b	z0.b, p0, [dstin]
@@ -87,10 +96,10 @@ L(set_long):
 	bic	dst, dstin, 31
 	stp	q0, q0, [dst, 32]
 	bic	dst, dstin, 63
-	sub	count, dstend, dst				/* Count is now 64 too large.  */
-	sub	count, count, 128				/* Adjust count and bias for loop.  */
+	sub	count, dstend, dst				/* Count is now 64 too large. */
+	sub	count, count, 128				/* Adjust count and bias for loop. */
 
-	sub	x8, dstend, 1					/* Write last bytes before ZVA loop.  */
+	sub	x8, dstend, 1					/* Write last bytes before ZVA loop. */
 	bic	x8, x8, 15
 	stp	q0, q0, [x8, -48]
 	str	q0, [x8, -16]
@@ -106,8 +115,8 @@ L(zva64_loop):
 
 L(no_zva):
 	str	q0, [dstin]
-	sub	count, dstend, dst				/* Count is 16 too large.  */
-	sub	count, count, 64 + 16			/* Adjust count and bias for loop.  */
+	sub	count, dstend, dst				/* Count is 16 too large. */
+	sub	count, count, 64 + 16			/* Adjust count and bias for loop. */
 
 L(no_zva_loop):
 	stp	q0, q0, [dst, 16]
