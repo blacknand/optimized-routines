@@ -15,15 +15,17 @@
 
 .arch armv9.2-a+sve2
 
-#define dstin		x0
-#define val			x1
-#define valw		w1
-#define count		x2
-#define dst			x3
-#define dstend		x4
-#define off			x3
-#define zva_val	    x5
-#define dstend2 	x5
+#define dstin	x0
+#define val	x1
+#define valw	w1
+#define count	x2
+#define dst	x3
+#define dstend	x4
+#define zva_val	x5
+#define vlen	x5
+#define off	x3
+#define dstend2 x5
+
 
 ENTRY (__memset_aarch64_sve)
 	cbz count, L(null_count)
