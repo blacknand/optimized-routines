@@ -18,6 +18,7 @@ string-lib-srcs := \
   	$(S)/$(ARCH)/memset.S \
   	$(S)/$(ARCH)/memset-scalar.S \
   	$(S)/$(ARCH)/memset-sve.S \
+	$(S)/$(ARCH)/experimental/memset-sve2.S
 #   	$(S)/$(ARCH)/experimental/memset-sve-optimized.S
 string-test-srcs := $(wildcard $(S)/test/*.c)
 string-bench-srcs := $(wildcard $(S)/bench/*.c)

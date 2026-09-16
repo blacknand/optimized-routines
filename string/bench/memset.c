@@ -26,12 +26,9 @@ static uint8_t a[MAX_SIZE + 4096] __attribute__((__aligned__(4096)));
 
 #define DOTEST(STR,TESTFN)			\
   printf (STR);					\
-  RUN (TESTFN, memset);				\
   RUNA64 (TESTFN, __memset_aarch64);		\
-  RUNA64 (TESTFN, __memset_scalar);		\
   RUNSVE (TESTFN, __memset_aarch64_sve);	\
-  RUNMOPS (TESTFN, __memset_aarch64_mops);	\
-  RUNA32 (TESTFN, __memset_arm);		\
+  RUNSVE (TESTFN, __memset_aarch64_sve2_old);	\
   printf ("\n");
   // Note: move this above the printf statement to register
   // RUNSVE2 (TESTFN, __memset_sve_optimized);
