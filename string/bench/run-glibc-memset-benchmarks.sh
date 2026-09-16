@@ -12,8 +12,8 @@ if [[ ! -f /work/gnu/src/glibc-build/Makefile ]]; then
 fi
 
 # Note that this is a new memset implementation, it does not replace the existing memset implementations (sve, generic SIMD, zva, etc.)
-sve_source=/work/gnu/src/optimized-routines/string/aarch64/experimental/__memset_aarch64_sve2.S
-sve_glibc=/work/gnu/src/glibc/sysdeps/aarch64/multiarch/__memset_aarch64_sve2.S
+sve_source=/work/gnu/src/optimized-routines/string/aarch64/memset-sve.S
+sve_glibc=/work/gnu/src/glibc/sysdeps/aarch64/multiarch/memset-sve.S
 
 # Only update the glibc copy when its transformed contents have changed.  This
 # avoids forcing an otherwise unnecessary glibc rebuild on every script run.
@@ -24,17 +24,19 @@ if ! cmp -s \
     "$sve_source" > "$sve_glibc"
 fi
 
+# set -x
 # Register the implementation with the build
-if ! grep -Fq '__memset_aarch64_sve2' /work/gnu/src/glibc/sysdeps/aarch64/multiarch/Makefile; then
+if ! grep -Fq 'memset-sve' /work/gnu/src/glibc/sysdeps/aarch64/multiarch/Makefile; then
   # Insert the text before the memset_sve_zva64 line
-  sed -i '/^[[:space:]]*memset_sve_zva64 \\/i\  __memset_aarch64_sve2 \\' /work/gnu/src/glibc/sysdeps/aarch64/multiarch/Makefile
+  sed -i '/^[[:space:]]*memset_sve_zva64 \\/i\  memset-sve \\' /work/gnu/src/glibc/sysdeps/aarch64/multiarch/Makefile
 fi
 
 # Test and benchmark registration
-if ! grep -Fq '__memset_aarch64_sve2' /work/gnu/src/glibc/sysdeps/aarch64/multiarch/ifunc-impl-list.c; then
+if ! grep -Fq '__memset_aarch64_sve' /work/gnu/src/glibc/sysdeps/aarch64/multiarch/ifunc-impl-list.c; then
   # Insert the text before the __memset_sve_zva64 line
-  sed -i '/__memset_sve_zva64)/i\              IFUNC_IMPL_ADD (array, i, memset, sve2, __memset_aarch64_sve2)' /work/gnu/src/glibc/sysdeps/aarch64/multiarch/ifunc-impl-list.c
+  sed -i '/__memset_sve_zva64)/i\              IFUNC_IMPL_ADD (array, i, memset, sve2, __memset_aarch64_sve)' /work/gnu/src/glibc/sysdeps/aarch64/multiarch/ifunc-impl-list.c
 fi
+# set +x
 
 # Skip irrelevant benchmarks: kunpeng and oryon
 impl_list=/work/gnu/src/glibc/sysdeps/aarch64/multiarch/ifunc-impl-list.c
@@ -126,9 +128,10 @@ benchmarks=(
 
 routines=(
   # generic_memset
-  __memset_aarch64_sve2 
-  __memset_sve_zva64
+  # __memset_aarch64_sve2 
+  # __memset_sve_zva64
   __memset_generic
+  __memset_aarch64_sve
 )
 
 if $skip_all_benchmarks; then
