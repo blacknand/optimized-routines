@@ -202,3 +202,10 @@ if $run_aor_benchmark; then
   printf '\033[1;36m> AoR benchmark results stored in %s\033[0m\n' \
     "$results_dir"
 fi
+
+python3 /work/gnu/src/optimized-routines/string/bench/summarize-memset.py \
+--run-group=$results_dir \
+--candidate=__memset_aarch64_sve \
+--baseline=__memset_generic
+
+cat $results_dir/aor-bench-memset.run-5.out
