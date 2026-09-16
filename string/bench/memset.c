@@ -22,9 +22,6 @@
 #define MIN_SIZE 32768
 #define MAX_SIZE (1024 * 1024)
 
-static int alignment = 0;
-
-/* Each block is page is exactly 4096 bytes */
 static uint8_t a[MAX_SIZE + 4096] __attribute__((__aligned__(4096)));
 
 #define DOTEST(STR,TESTFN)			\
@@ -190,11 +187,9 @@ memset_medium (const char *name, void *(*set)(void *, int, size_t))
 
   for (uint64_t size = 8; size <= 512; size *= 2)
     {
-      uint64_t t = clock_get_ns ();                   /* Start timer*/
-      for (int i = 0; i < ITERS_MEDIUM; i++) {        /* Call selected implementation ITERS_MEDIUM times */
-        /* Because a is an array of bytes */
-        set (a + alignment, 0, size);
-      }
+      uint64_t t = clock_get_ns ();
+      for (int i = 0; i < ITERS_MEDIUM; i++)
+	set (a, 0, size);
       t = clock_get_ns () - t;
       memset_size = size * ITERS_MEDIUM;
       total_size += memset_size;
