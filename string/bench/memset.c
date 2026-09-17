@@ -177,27 +177,6 @@ memset_small (const char *name, void *(*set)(void *, int, size_t))
 }
 
 static void inline __attribute ((always_inline))
-memset_small (const char *name, void *(*set)(void *, int, size_t))
-{
-  printf ("%22s ", name);
-  uint64_t total_size = 0, tsum = 0, memset_size;
-
-  for (size_t size = 0; size < 16; size++)
-    {
-      uint64_t t = clock_get_ns ();
-      for (int i = 0; i < ITERS_SMALL; i++)
-	set (a + (i & 4095), 0, size);
-      t = clock_get_ns () - t;
-      memset_size = (size ? size : 1) * ITERS_SMALL;
-      total_size += memset_size;
-      tsum += t;
-      printf ("%4.2f ", (double)memset_size / t);
-    }
-  printf( "avg %5.2f\n", (double)total_size / tsum);
-}
-
-
-static void inline __attribute ((always_inline))
 memset_medium (const char *name, void *(*set)(void *, int, size_t))
 {
   printf ("%22s ", name);
