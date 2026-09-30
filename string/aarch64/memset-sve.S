@@ -26,31 +26,30 @@
 #define off	x3
 #define dstend2 x5
 #define dstp	x6
+#define xN	x7
 
 ENTRY (__memset_aarch64_sve)
-	cntb	vlen		/* Count bytes for the current SVE vector length. */
 	dup	z0.b, valw
 
-	/* Perform the initial write. */
 	whilelo p0.b, xzr, count
 	st1b	z0.b, p0, [dstin]
 
-	/* If everything has been filled in already. Use vlen because
-	   on Graviton 4/Neoverse V2-V3 a vector is 16 elements wide. */
-	subs	count, count, vlen
+	cmp count, 16
 	b.ls	L(return)
 
-	/* Advance past the initial vector and handle a short remainder. */
-	addvl	dstp, dstin, 1		/* dstp = dstin + (1 * VL) */
-	cmp	count, 16
-	b.lo	L(set_remaining_short)
+	/* May be uncessary to modify count. */
 
-	add	dstend, dstp, count	/* Bytes that have been written + remaining bytes */
+	cntp xN, p0, p0.b
+	sub count, count, xN
+	add dstp, dstin, xN
+
+	/* dstp should enable the other paths to avoid writing the first 16
+	   bytes, and the size of the vector is not calculated anymore. */
+
+	add	dstend, dstp, count
 	cmp	count, 64
 	b.hi	L(set_128)
 
-	/* Set 16..64 bytes. Requires that at least 16 bytes
-	   remain to perform the store. */
 	mov	off, 48
 	and	off, off, count, lsr 1
 	sub	dstend2, dstend, off
@@ -59,10 +58,6 @@ ENTRY (__memset_aarch64_sve)
 	str	q0, [dstend2, -16]
 	str	q0, [dstend, -16]
 	ret
-
-L(set_remaining_short):
-	whilelo p0.b, xzr, count
-	st1b	z0.b, p0, [dstp]
 
 L(return):
 	ret
