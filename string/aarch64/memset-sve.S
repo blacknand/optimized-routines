@@ -58,15 +58,16 @@ ENTRY (__memset_aarch64_sve)
 	 */
 
 	add	dstend, dstin, count
-	cmp	count, 64
+	cmp	count2, 64
 	b.hi	L(set_128)
 
 	/* 16..64 */
 	mov	off, 48
-	and	off, off, count, lsr 1
+	and	off, off, count2, lsr 1
 	sub	dstend2, dstend, off
-	str	q0, [dstp]
-	str	q0, [dstp, off]
+	whilelo p1.b, off, count2
+	st1b z0.b, p1, [dstp]
+	st1b z0.b, p1, [dstp, off]
 	str	q0, [dstend2, -16]
 	str	q0, [dstend, -16]
 	ret
