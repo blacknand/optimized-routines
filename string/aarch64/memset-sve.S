@@ -39,11 +39,10 @@ ENTRY (__memset_aarch64_sve)
 	cmp count, 16
 	b.ls	L(return)
 
-	cntp xN, p0, p0.b
-	sub count2, count, xN
-	add dstp, dstin, xN
-
+	/* The first SVE store has written at least 16 bytes.  */
 	add	dstend, dstin, count
+	sub count2, count, 16
+	add dstp, dstin, 16
 	cmp	count2, 64
 	b.hi	L(set_128)
 
@@ -73,11 +72,14 @@ L(return):
 
 .p2align 4
 L(set_128):
-	bic	dst, dstp, 15
 	cmp	count2, 128
 	b.hi	L(set_long)
 	stp	q0, q0, [dstp]
+	/* The first 32 bytes and final 64 bytes cover up to 96 bytes.  */
+	cmp	count2, 96
+	b.ls	L(set_112_tail)
 	stp	q0, q0, [dstp, 32]
+L(set_112_tail):
 	stp	q0, q0, [dstend, -64]
 	stp	q0, q0, [dstend, -32]
 	ret
@@ -95,6 +97,7 @@ L(set_long):
 	cmp	zva_val, 4		/* ZVA size is 64 bytes.  */
 	b.ne	L(no_zva)
 #endif
+	bic	dst, dstp, 15
 	str	q0, [dstp]
 	str	q0, [dst, 16]
 	bic	dst, dstp, 31
@@ -118,7 +121,7 @@ L(zva64_loop):
 	ret
 
 L(no_zva):
-	str	q0, [dstp]
+	bic	dst, dstin, 15
 	sub	count2, dstend, dst	/* Count is 16 too large.  */
 	sub	count2, count2, 64 + 16	/* Adjust count and bias for loop.  */
 L(no_zva_loop):
