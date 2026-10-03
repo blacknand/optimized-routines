@@ -26,6 +26,7 @@
 #define off	x3
 #define dstend2 x5
 #define dstp	x6
+// TODO: investigate which macros I can remove (if they decrease performance).
 #define xN	x7
 #define count2  x9
 
@@ -38,37 +39,32 @@ ENTRY (__memset_aarch64_sve)
 	cmp count, 16
 	b.ls	L(return)
 
-	/* Potentially unecessary to use cntb. */
 	cntp xN, p0, p0.b
 	sub count2, count, xN
 	add dstp, dstin, xN
-
-	/* dstp should enable the other paths to avoid writing the first 16
-	   bytes, and the size of the vector is not calculated anymore. */
-
-	/* The problem is the program writes the first 16 bytes,
-	   and then falls through to the 16..64 path and attempts to write from there.
-
-	   If the program has written the first 16 bytes and there are not enough bytes
-	   left over to actually fall through, then it causes a segfault. */
-
-	/* Two potential fixes:
-		+ Overwrite 16 bytes in 16..64, ignore in every other path
-		+ Handle the remaining n bytes in a code block which is branched to
-	 */
 
 	add	dstend, dstin, count
 	cmp	count2, 64
 	b.hi	L(set_128)
 
-	/* 16..64 */
+
+	/* Up to 64 bytes remain after the initial store.  */
+	cmp count2, 32
+	b.ls L(tmp)
+
 	mov	off, 48
 	and	off, off, count2, lsr 1
-	sub	dstend2, dstend, off
 	whilelo p1.b, off, count2
+	sub	dstend2, dstend, off
 	st1b z0.b, p1, [dstp]
 	st1b z0.b, p1, [dstp, off]
 	str	q0, [dstend2, -16]
+	str	q0, [dstend, -16]
+	ret
+
+L(tmp):
+	whilelo p1.b, xzr, count2
+	st1b z0.b, p1, [dstp]
 	str	q0, [dstend, -16]
 	ret
 
