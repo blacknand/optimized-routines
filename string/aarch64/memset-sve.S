@@ -29,14 +29,15 @@ ENTRY (__memset_aarch64_sve)
 	dup	z0.b, valw
 
 	whilelo p0.b, xzr, count
-	st1b z0.b, p0, [dstin]
-	cmp count, 16
-	b.lo L(exit)
+	st1b 	z0.b, p0, [dstin]
+	cmp 	count, 16
+	b.lo 	L(exit)
 
 	add	dstend, dstin, count
 	cmp	count, 64
 	b.hi	L(set_128)
 
+	/* Set 16..64 bytes.  */
 	mov	off, 48
 	and	off, off, count, lsr 1
 	sub	dstend2, dstend, off
@@ -51,18 +52,32 @@ L(exit):
 .p2align 4
 L(set_128):
 	bic	dst, dstin, 15
-	cmp	count, 128 - 16
+	cmp	count, 128
 	b.hi	L(set_long)
-	// TODO: measure if str is faster than stp. Otherwise revert
 	str	q0, [dstin, 16]
 	stp	q0, q0, [dstin, 32]
 	stp	q0, q0, [dstend, -64]
 	stp	q0, q0, [dstend, -32]
 	ret
+	/*
+	// TODO: measure if str is faster than stp. Otherwise revert
+	// str	q0, [dstin, 16]
+	cmp count, 128
+	b.hi L(set_long)
+
+	stp	q0, q0, [dstin, 16]
+	stp	q0, q0, [dstend, -64]
+	stp	q0, q0, [dstend, -32]
+	cmp count, 112
+	b.ls L(done_128)
+	str q0, [dstin, 48]
+
+L(done_128):
+	ret
+*/
 
 .p2align 4
 L(set_long):
-	// TODO: bench if 256 - 16 is faster than just 256
 	cmp	count, 256
 	b.lo	L(no_zva)
 	tst	valw, 255
