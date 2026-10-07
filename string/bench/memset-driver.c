@@ -13,6 +13,6 @@ extern void* __memset_aarch64_sve(void* s, int c, size_t n);
 int main(void)
 {
 	unsigned char* buffer[16];
-	__memset_aarch64_sve(buffer, 48, 28);
+	__memset_aarch64_sve(buffer, 0, 256);
 	return 0;
 }
