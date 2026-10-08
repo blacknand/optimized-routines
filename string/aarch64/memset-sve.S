@@ -30,8 +30,7 @@ ENTRY (__memset_aarch64_sve)
 
 	whilelo p0.b, xzr, count
 	st1b 	z0.b, p0, [dstin]
-	cmp 	count, 16
-	b.lo 	L(exit)
+	b.cs 	L(exit)
 
 	add	dstend, dstin, count
 	cmp	count, 64
