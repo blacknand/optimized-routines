@@ -28,6 +28,7 @@
 ENTRY (__memset_aarch64_sve)
 	dup	v0.16B, valw
 
+	/* whilelo costs 3 cycles to execute */
 	whilelo p0.b, xzr, count
 	st1b 	z0.b, p0, [dstin]
 	cmp 	count, 16
@@ -49,9 +50,7 @@ ENTRY (__memset_aarch64_sve)
 L(exit):
 	ret
 
-.p2align 4
 L(set_128):
-	bic	dst, dstin, 15
 	cmp	count, 128
 	b.hi	L(set_long)
 	str	q0, [dstin, 16]
@@ -63,6 +62,7 @@ L(set_128):
 .p2align 4
 L(set_long):
 	/* Only a count of at least 256 bytes and a zero fill byte. */
+	bic	dst, dstin, 15
 	cmp	count, 256
 	b.lo	L(no_zva)
 	tst	valw, 255
@@ -82,7 +82,6 @@ L(set_long):
 
 	stp	q0, q0, [dstend, -64]
 	stp	q0, q0, [dstend, -32]
-
 
 .p2align 4
 L(zva64_loop):
