@@ -51,7 +51,6 @@ L(exit):
 
 .p2align 4
 L(set_128):
-	bic	dst, dstin, 15
 	cmp	count, 128
 	b.hi	L(set_long)
 	str	q0, [dstin, 16]
@@ -93,6 +92,7 @@ L(zva64_loop):
 	ret
 
 L(no_zva):
+	bic	dst, dstin, 15
 	sub	count, dstend, dst	/* Count is 16 too large. */
 	sub	count, count, 64 + 16	/* Adjust count and bias for loop. */
 L(no_zva_loop):
