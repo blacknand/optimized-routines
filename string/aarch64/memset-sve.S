@@ -30,7 +30,9 @@ ENTRY (__memset_aarch64_sve)
 
 	whilelo p0.b, xzr, count
 	st1b 	z0.b, p0, [dstin]
-	b.cs 	L(exit)
+	/* Using the C flag set by whilelo is slower. */
+	cmp 	count, 16
+	b.lo 	L(exit)
 
 	add	dstend, dstin, count
 	cmp	count, 64
