@@ -9,11 +9,11 @@ while (( $# > 0)); do
     case "$1" in
         --compile)
             compile=true
-            shift
+	    shift
             ;;
         --record)
             record=true
-            shift
+	    shift
             ;;
         *)
             break
@@ -34,24 +34,30 @@ fi
 
 events=(
     cycles:u instructions:u
-    cache-misses:u cache-references:u alignment-faults:u
-    bus-cycles:u branches:u branch-misses:u
+    cache-misses:u cache-references:u
+    branches:u branch-misses:u
+    alignment-faults:u bus-cycles:u
 )
-event_batch_sizes=(2 3 2)
+
+if [[ "$record" == true ]]; then
+    taskset -c 3 perf record --no-buildid-cache \
+        -o memset-random.perf.data \
+        -e cycles:u -F 999 \
+        -- ./memset-driver --random || exit "$?"
+
+    perf report --stdio --no-children --show-nr-samples \
+        --symbols=__memset_aarch64_sve --percentage absolute \
+        -i memset-random.perf.data || exit "$?"
+
+    perf annotate --stdio --show-nr-samples \
+        -s __memset_aarch64_sve \
+        -i memset-random.perf.data || exit "$?"
+fi
 
 for workload in random deterministic; do
     printf '\nmemset_%s\n' "$workload"
-    for ((event_index = 0, batch_index = 0; event_index < ${#events[@]}; event_index += batch_size, batch_index++)); do
-        batch_size="${event_batch_sizes[batch_index % ${#event_batch_sizes[@]}]}"
-        event_batch="${events[event_index]}"
-        for ((batch_offset = 1; batch_offset < batch_size && event_index + batch_offset < ${#events[@]}; batch_offset++)); do
-            event_batch+=",${events[event_index + batch_offset]}"
-        done
-        printf '\nEvents: %s\n' "$event_batch"
-        perf stat -B -r 5 -e "$event_batch" -- ./memset-driver "--$workload" || exit "$?"
+    for ((event_index = 0; event_index < ${#events[@]}; event_index += 2)); do
+	event_batch="{${events[event_index]},${events[event_index + 1]}}"
+        taskset -c 3 perf stat -B -r 5 -e "$event_batch" -- ./memset-driver "--$workload" || exit "$?"
     done
 done
-
-perf record -e cycles:u,instructions:u,branches:u -F 999 -- ./memset-driver
-perf report
-perf annotate -d ./memset-driver
