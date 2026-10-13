@@ -22,14 +22,17 @@
 #define dst	x3
 #define dstend	x4
 #define zva_val	x5
-#define vlen	x5
 #define off	x3
 #define dstend2 x5
 
 ENTRY (__memset_aarch64_sve)
 	dup	v0.16B, valw
-	cmp	count, 16
-	b.lo	L(set_16)
+
+	whilelo p0.b, xzr, count
+	st1b 	z0.b, p0, [dstin]
+	/* Using the C flag set by whilelo is slower. */
+	cmp 	count, 16
+	b.lo 	L(exit)
 
 	add	dstend, dstin, count
 	cmp	count, 64
@@ -39,31 +42,27 @@ ENTRY (__memset_aarch64_sve)
 	mov	off, 48
 	and	off, off, count, lsr 1
 	sub	dstend2, dstend, off
-	str	q0, [dstin]
 	str	q0, [dstin, off]
 	str	q0, [dstend2, -16]
 	str	q0, [dstend, -16]
 	ret
 
-	.p2align 4
-L(set_16):
-	whilelo p0.b, xzr, count
-	st1b	z0.b, p0, [dstin]
+L(exit):
 	ret
 
-	.p2align 4
+.p2align 4
 L(set_128):
-	bic	dst, dstin, 15
 	cmp	count, 128
 	b.hi	L(set_long)
-	stp	q0, q0, [dstin]
+	str	q0, [dstin, 16]
 	stp	q0, q0, [dstin, 32]
 	stp	q0, q0, [dstend, -64]
 	stp	q0, q0, [dstend, -32]
 	ret
 
-	.p2align 4
+.p2align 4
 L(set_long):
+	/* Only a count of at least 256 bytes and a zero fill byte. */
 	cmp	count, 256
 	b.lo	L(no_zva)
 	tst	valw, 255
@@ -72,24 +71,20 @@ L(set_long):
 #ifndef SKIP_ZVA_CHECK
 	mrs	zva_val, dczid_el0
 	and	zva_val, zva_val, 31
-	cmp	zva_val, 4		/* ZVA size is 64 bytes.  */
+	cmp	zva_val, 4		/* ZVA size is 64 bytes. */
 	b.ne	L(no_zva)
 #endif
-	str	q0, [dstin]
-	str	q0, [dst, 16]
-	bic	dst, dstin, 31
-	stp	q0, q0, [dst, 32]
+	str	q0, [dstin, 16]
+	stp	q0, q0, [dstin, 32]
 	bic	dst, dstin, 63
 	sub	count, dstend, dst	/* Count is now 64 too large.  */
-	sub	count, count, 128	/* Adjust count and bias for loop.  */
+	sub	count, count, 128	/* Adjust count and bias for loop. */
 
-	sub	x8, dstend, 1		/* Write last bytes before ZVA loop.  */
-	bic	x8, x8, 15
-	stp	q0, q0, [x8, -48]
-	str	q0, [x8, -16]
-	str	q0, [dstend, -16]
+	stp	q0, q0, [dstend, -64]
+	stp	q0, q0, [dstend, -32]
 
-	.p2align 4
+
+.p2align 4
 L(zva64_loop):
 	add	dst, dst, 64
 	dc	zva, dst
@@ -98,9 +93,9 @@ L(zva64_loop):
 	ret
 
 L(no_zva):
-	str	q0, [dstin]
-	sub	count, dstend, dst	/* Count is 16 too large.  */
-	sub	count, count, 64 + 16	/* Adjust count and bias for loop.  */
+	bic	dst, dstin, 15
+	sub	count, dstend, dst	/* Count is 16 too large. */
+	sub	count, count, 64 + 16	/* Adjust count and bias for loop. */
 L(no_zva_loop):
 	stp	q0, q0, [dst, 16]
 	stp	q0, q0, [dst, 48]
