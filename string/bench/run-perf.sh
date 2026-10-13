@@ -45,7 +45,7 @@ events=(
 if [[ "$record" == true ]]; then
     taskset -c 3 perf record --no-buildid-cache \
         -o memset-random.perf.data \
-        -e cycles:u -F 999 \
+        -e '{cycles:u,branch-misses:u}' -F 999 \
         -- ./memset-driver --random || exit "$?"
 
     perf report --stdio --no-children --show-nr-samples \
