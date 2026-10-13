@@ -36,7 +36,8 @@ events=(
     cycles:u instructions:u
     cache-misses:u cache-references:u
     branches:u branch-misses:u
-    alignment-faults:u bus-cycles:u
+    alignment-faults:u page-faults:u
+    bus-cycles:u
 )
 
 if [[ "$record" == true ]]; then
@@ -49,15 +50,44 @@ if [[ "$record" == true ]]; then
         --symbols=__memset_aarch64_sve --percentage absolute \
         -i memset-random.perf.data || exit "$?"
 
-    perf annotate --stdio --show-nr-samples \
-        -s __memset_aarch64_sve \
+    perf annotate --stdio --verbose \
+        -s __memset_aarch64_sve --percent-type=local-period \
         -i memset-random.perf.data || exit "$?"
 fi
 
+results_dir=/work/gnu/src/optimized-routines/string/bench/perf-results
+mkdir -p "$results_dir" || exit "$?"
+results_file="$results_dir/result-$(date -u +%M-%H-%d-%m-%Y)"
+touch "$results_file" || exit "$?"
+
+printf 'Running perf stat, check %s\n' "$results_file"
+
+# Codex generated
+perf_pid=
+stop_perf() {
+    local exit_status="$1"
+    trap '' INT TERM
+    if [[ -n "$perf_pid" ]]; then
+        kill -TERM -- "-$perf_pid" 2>/dev/null || true
+        wait "$perf_pid" 2>/dev/null || true
+    fi
+    printf '\nStopped. Results saved in %s\n' "$results_file" >&2
+    exit "$exit_status"
+}
+trap 'stop_perf 130' INT
+trap 'stop_perf 143' TERM
+
 for workload in random deterministic; do
-    printf '\nmemset_%s\n' "$workload"
     for ((event_index = 0; event_index < ${#events[@]}; event_index += 2)); do
-	event_batch="{${events[event_index]},${events[event_index + 1]}}"
-        taskset -c 3 perf stat -B -r 5 -e "$event_batch" -- ./memset-driver "--$workload" || exit "$?"
+        if (( event_index == ${#events[@]} - 1 )); then
+            event_batch="${events[event_index]}"
+        else
+            event_batch="{${events[event_index]},${events[event_index + 1]}}"
+        fi
+        setsid taskset -c 3 perf stat -B -r 5 -e "$event_batch" \
+            --append --output "$results_file" -- ./memset-driver "--$workload" &
+        perf_pid=$!
+        wait "$perf_pid" || exit "$?"
+        perf_pid=
     done
 done
