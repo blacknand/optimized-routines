@@ -28,8 +28,10 @@ if [[ "$compile" == true ]]; then
         -ggdb # Required for perf annotate
     compile_status=$?
     if [[ "$compile_status" -ne 0 ]]; then
+        printf 'Could not compile memset driver, exiting script now'
         exit "$compile_status"
     fi
+    printf 'Successfully compiled the memset driver\n'
 fi
 
 events=(
