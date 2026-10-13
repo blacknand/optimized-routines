@@ -1,6 +1,20 @@
 #!/bin/bash
 
-cd /work/gnu/src/optimized-routines
+aor_root="$(pwd -P)" || exit 1
+git_root="$(git -C "$aor_root" rev-parse --show-toplevel 2>/dev/null)" || git_root=
+
+if [[ "$aor_root" != "$git_root" ||
+      ! -f "$aor_root/Makefile" ||
+      ! -f "$aor_root/string/Dir.mk" ||
+      ! -f "$aor_root/string/aarch64/memset-sve.S" ||
+      ! -f "$aor_root/string/bench/memset-driver.c" ]]; then
+    printf 'Error: run-perf.sh must be run from the root of an AoR worktree (got %s).\n' \
+        "$aor_root" >&2
+    exit 1
+fi
+
+bench_cpu="${BENCH_CPU:-3}"
+printf 'AoR worktree: %s (CPU %s)\n' "$aor_root" "$bench_cpu"
 
 compile=false
 record=false
@@ -43,7 +57,7 @@ events=(
 )
 
 if [[ "$record" == true ]]; then
-    taskset -c 3 perf record --no-buildid-cache \
+    taskset -c "$bench_cpu" perf record --no-buildid-cache \
         -o memset-random.perf.data \
         -e '{cycles:u,branch-misses:u}' -F 999 \
         -- ./memset-driver --random || exit "$?"
@@ -57,7 +71,7 @@ if [[ "$record" == true ]]; then
         -i memset-random.perf.data || exit "$?"
 fi
 
-results_dir=/work/gnu/src/optimized-routines/string/bench/perf-results
+results_dir="$aor_root/string/bench/perf-results"
 mkdir -p "$results_dir" || exit "$?"
 results_file="$results_dir/result-$(date -u +%M-%H-%d-%m-%Y)"
 touch "$results_file" || exit "$?"
@@ -86,7 +100,7 @@ for workload in random deterministic; do
         else
             event_batch="{${events[event_index]},${events[event_index + 1]}}"
         fi
-        setsid taskset -c 3 perf stat -B -r 5 -e "$event_batch" \
+        setsid taskset -c "$bench_cpu" perf stat -B -r 5 -e "$event_batch" \
             --append --output "$results_file" -- ./memset-driver "--$workload" &
         perf_pid=$!
         wait "$perf_pid" || exit "$?"
