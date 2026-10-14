@@ -31,6 +31,12 @@ ENTRY (__memset_aarch64_sve)
 	cmp	count, 16
 	b.lo	L(set_16)
 
+	/*
+	While building predicate, get the size of the vector. Replace subsequent
+	comparisons with the size of the vector. Then do not need to handle bytes < 32
+	with VL 256.
+	 */
+
 	add	dstend, dstin, count
 	cmp	count, 64
 	b.hi	L(set_128)
@@ -53,7 +59,6 @@ L(set_16):
 
 	.p2align 4
 L(set_128):
-	bic	dst, dstin, 15
 	cmp	count, 128
 	b.hi	L(set_long)
 	stp	q0, q0, [dstin]
@@ -64,7 +69,13 @@ L(set_128):
 
 	.p2align 4
 L(set_long):
-	cmp	count, 256
+	/* Investigate this area.
+		+ What is the best size before performing DC ZVA?
+	   	+ Should the block be aligned in a different way?
+	   	+ Should it only perform a single DC ZVA in the loop?
+		+ Can I either eliminate the setup or reduce it? (and the tail)
+		+ How can I align the whole block to 64-bytes? This may eliminate the scalar stores. */
+	cmp	count, 384
 	b.lo	L(no_zva)
 	tst	valw, 255
 	b.ne	L(no_zva)
@@ -75,6 +86,7 @@ L(set_long):
 	cmp	zva_val, 4		/* ZVA size is 64 bytes.  */
 	b.ne	L(no_zva)
 #endif
+	bic	dst, dstin, 15
 	str	q0, [dstin]
 	str	q0, [dst, 16]
 	bic	dst, dstin, 31
@@ -83,7 +95,10 @@ L(set_long):
 	sub	count, dstend, dst	/* Count is now 64 too large.  */
 	sub	count, count, 128	/* Adjust count and bias for loop.  */
 
-	sub	x8, dstend, 1		/* Write last bytes before ZVA loop.  */
+/* Need a handle for the remainer, the final stp is writing out of bounds. */
+
+	/* Write tail end (64-bytes) */
+	sub	x8, dstend, 1
 	bic	x8, x8, 15
 	stp	q0, q0, [x8, -48]
 	str	q0, [x8, -16]
@@ -91,13 +106,22 @@ L(set_long):
 
 	.p2align 4
 L(zva64_loop):
+	/* TODO: It may be better to instead group all the additions into unused registers,
+	   and then perform the DC ZVA instructions in one group too. */
 	add	dst, dst, 64
 	dc	zva, dst
-	subs	count, count, 64
+	add	dst, dst, 64
+	dc	zva, dst
+	add	dst, dst, 64
+	dc	zva, dst
+	add	dst, dst, 64
+	dc	zva, dst
+	subs	count, count, 256
 	b.hi	L(zva64_loop)
 	ret
 
 L(no_zva):
+	bic	dst, dstin, 15
 	str	q0, [dstin]
 	sub	count, dstend, dst	/* Count is 16 too large.  */
 	sub	count, count, 64 + 16	/* Adjust count and bias for loop.  */
