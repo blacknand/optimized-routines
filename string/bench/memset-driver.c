@@ -132,13 +132,20 @@ memset_deterministic()
     }
 }
 
+void use_gdb() {
+	char* buffer[2];
+	__memset_aarch64_sve(buffer, 0, 131560);
+}
+
 int main(int argc, char **argv)
 {
   int use_random = strcmp(argv[1], "--random") == 0;
   int use_deterministic = strcmp(argv[1], "--deterministic") == 0;
+  int use_gdb_bool = strcmp(argv[1], "--gdb") == 0;
   if (use_random) init_memset_distribution();
   memset (a, 1, sizeof (a));
   if (use_random) memset_random();
   if (use_deterministic) memset_deterministic();
+  if (use_gdb_bool) use_gdb();
   return 0;
 }
