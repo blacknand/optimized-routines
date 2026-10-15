@@ -32,7 +32,7 @@ ENTRY (__memset_aarch64_sve)
 	b.lo	L(set_16)
 
 	/*
-	While building predicate, get the size of the vector. Replace subsequent
+	TODO: While building predicate, get the size of the vector. Replace subsequent
 	comparisons with the size of the vector. Then do not need to handle bytes < 32
 	with VL 256.
 	 */
@@ -75,8 +75,16 @@ L(set_long):
 	   	+ Should it only perform a single DC ZVA in the loop?
 		+ Can I either eliminate the setup or reduce it? (and the tail)
 		+ How can I align the whole block to 64-bytes? This may eliminate the scalar stores. */
+
+	/* Check if both dstin and count are multiples of 64. If both are,
+	   beginning and tail store is not needed. */
+	orr	x8, dstin, count
+	and	x8, x8, 63
+	/* TODO: Investigate whether the compare and branch is cheaper. */
+	cbz	x8, L(try_zva64)
 	cmp	count, 384
 	b.lo	L(no_zva)
+L(try_zva64):
 	tst	valw, 255
 	b.ne	L(no_zva)
 
@@ -86,9 +94,8 @@ L(set_long):
 	cmp	zva_val, 4		/* ZVA size is 64 bytes.  */
 	b.ne	L(no_zva)
 #endif
-	bic	dst, dstin, 15
-	str	q0, [dstin]
-	str	q0, [dst, 16]
+	cbz 	x8, L(zva64_aligned)
+	stp	q0, q0, [dstin]
 	bic	dst, dstin, 31
 	stp	q0, q0, [dst, 32]
 	bic	dst, dstin, 63
@@ -98,10 +105,11 @@ L(set_long):
 	/* Write tail end (64-bytes) */
 	stp	q0, q0, [dstend, -64]
 	stp	q0, q0, [dstend, -32]
+	b	L(zva64_setup)
 
-/* TODO: Can I align the whole ZVA region so the entire thing is aligned? */
-
-	.p2align 4
+L(zva64_aligned):
+	sub 	dst, dstin, 64		/* Adjust for loops beginning writing from dst + 64. */
+	.p2align 4			/* TODO: Useful? */
 L(zva64_setup):
 	/* If count < 256, zva64_loop cannot be used. */
 	subs	count, count, 256
@@ -119,11 +127,6 @@ L(zva64_loop):
 	dc	zva, dst
 	subs	count, count, 256
 	b.hs	L(zva64_loop)
-
-/* The tail loop exists to fill the gap that zva64_loop could not fill between
-   the zero'd region and the tail. The program must enter with the condition
-   0 < count < 256. Cleanup finishes when its write reaches the start of the tail,
-   or overlaps it. */
 
 	.p2align 4
 L(zva64_remainder):
