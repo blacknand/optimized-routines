@@ -69,18 +69,10 @@ L(set_128):
 
 	.p2align 4
 L(set_long):
-	/* Investigate this area.
-		+ What is the best size before performing DC ZVA?
-	   	+ Should the block be aligned in a different way?
-	   	+ Should it only perform a single DC ZVA in the loop?
-		+ Can I either eliminate the setup or reduce it? (and the tail)
-		+ How can I align the whole block to 64-bytes? This may eliminate the scalar stores. */
-
 	/* Check if both dstin and count are multiples of 64. If both are,
 	   beginning and tail store is not needed. */
 	orr	x8, dstin, count
 	and	x8, x8, 63
-	/* TODO: Investigate whether the compare and branch is cheaper. */
 	cbz	x8, L(try_zva64)
 	cmp	count, 384
 	b.lo	L(no_zva)
@@ -94,6 +86,7 @@ L(try_zva64):
 	cmp	zva_val, 4		/* ZVA size is 64 bytes.  */
 	b.ne	L(no_zva)
 #endif
+	/* Write first 64-bytes. */
 	cbz 	x8, L(zva64_aligned)
 	stp	q0, q0, [dstin]
 	bic	dst, dstin, 31
@@ -102,14 +95,14 @@ L(try_zva64):
 	sub	count, dstend, dst	/* Count is now 64 too large.  */
 	sub	count, count, 128	/* Adjust count and bias for loop.  */
 
-	/* Write tail end (64-bytes) */
+	/* Write last 64-bytes. */
 	stp	q0, q0, [dstend, -64]
 	stp	q0, q0, [dstend, -32]
 	b	L(zva64_setup)
 
 L(zva64_aligned):
 	sub 	dst, dstin, 64		/* Adjust for loops beginning writing from dst + 64. */
-	.p2align 4			/* TODO: Useful? */
+	.p2align 4
 L(zva64_setup):
 	/* If count < 256, zva64_loop cannot be used. */
 	subs	count, count, 256
