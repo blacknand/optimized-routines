@@ -95,29 +95,47 @@ L(set_long):
 	sub	count, dstend, dst	/* Count is now 64 too large.  */
 	sub	count, count, 128	/* Adjust count and bias for loop.  */
 
-/* Need a handle for the remainer, the final stp is writing out of bounds. */
-
 	/* Write tail end (64-bytes) */
-	sub	x8, dstend, 1
-	bic	x8, x8, 15
-	stp	q0, q0, [x8, -48]
-	str	q0, [x8, -16]
-	str	q0, [dstend, -16]
+	stp	q0, q0, [dstend, -64]
+	stp	q0, q0, [dstend, -32]
+
+/* TODO: Can I align the whole ZVA region so the entire thing is aligned? */
+
+	.p2align 4
+L(zva64_setup):
+	/* If count < 256, zva64_loop cannot be used. */
+	subs	count, count, 256
+	b.lo	L(zva64_remainder)
 
 	.p2align 4
 L(zva64_loop):
-	/* TODO: It may be better to instead group all the additions into unused registers,
-	   and then perform the DC ZVA instructions in one group too. */
-	add	dst, dst, 64
-	dc	zva, dst
-	add	dst, dst, 64
-	dc	zva, dst
-	add	dst, dst, 64
-	dc	zva, dst
-	add	dst, dst, 64
+	add	x11, dst, 64
+	add	x12, dst, 128
+	add	x13, dst, 192
+	add	dst, dst, 256
+	dc	zva, x11
+	dc	zva, x12
+	dc	zva, x13
 	dc	zva, dst
 	subs	count, count, 256
-	b.hi	L(zva64_loop)
+	b.hs	L(zva64_loop)
+
+/* The tail loop exists to fill the gap that zva64_loop could not fill between
+   the zero'd region and the tail. The program must enter with the condition
+   0 < count < 256. Cleanup finishes when its write reaches the start of the tail,
+   or overlaps it. */
+
+	.p2align 4
+L(zva64_remainder):
+	/* After adding back 256, if remainder is 0, exit. */
+	adds	count, count, 256
+	b.eq	L(zva_exit)
+L(zva64_single_loop):
+	add	dst, dst, 64
+	dc	zva, dst
+	subs	count, count, 64
+	b.hi	L(zva64_single_loop)
+L(zva_exit):
 	ret
 
 L(no_zva):
