@@ -31,12 +31,6 @@ ENTRY (__memset_aarch64_sve)
 	cmp	count, 16
 	b.lo	L(set_16)
 
-	/*
-	TODO: While building predicate, get the size of the vector. Replace subsequent
-	comparisons with the size of the vector. Then do not need to handle bytes < 32
-	with VL 256.
-	 */
-
 	add	dstend, dstin, count
 	cmp	count, 64
 	b.hi	L(set_128)
