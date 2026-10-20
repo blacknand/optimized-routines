@@ -60,7 +60,7 @@ L(single_vec_store):
 L(two_vec_stores):
 	ptrue	p0.b
 	st1b	{z0.b}, p0, [dstin]
-	st1b	{z0.b}, p0, [dstin, -1, mul vl]
+	st1b	{z0.b}, p0, [dstend, -1, mul vl]
 	ret
 
 /* What about VL512? Could just be the same, compare and then branch
