@@ -30,13 +30,17 @@ ENTRY (__memset_aarch64_sve)
 	dup	z0.b, valw
 	cntb 	x8
 	cmp	count, x8
-	b.ls	L(write_vec)
+	b.ls	L(single_vec_store)
 
 	add	dstend, dstin, count
 	cmp	count, 64
 	b.hi	L(set_128)
 
-	/* Set 16..64 bytes.  */
+	/* Write 32..64 bytes. */
+	cmp 	x8, 32
+	b.hs	L(two_vec_stores)
+
+	/* Set 16..64 bytes. */
 	mov	off, 48
 	and	off, off, count, lsr 1
 	sub	dstend2, dstend, off
@@ -47,10 +51,20 @@ ENTRY (__memset_aarch64_sve)
 	ret
 
 	.p2align 4
-L(write_vec):
+L(single_vec_store):
 	whilelo p0.b, xzr, count
 	st1b	z0.b, p0, [dstin]
 	ret
+
+	.p2align 4
+L(two_vec_stores):
+	ptrue	p0.b
+	st1b	{z0.b}, p0, [dstin]
+	st1b	{z0.b}, p0, [dstin, -1, mul vl]
+	ret
+
+/* What about VL512? Could just be the same, compare and then branch
+   to a codeblock which uses a single vector store. */
 
 	.p2align 4
 L(set_128):
